@@ -21,7 +21,9 @@ import org.apache.streampark.console.base.domain.RestRequest;
 import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.base.exception.ApiAlertException;
 import org.apache.streampark.console.core.entity.Application;
+import org.apache.streampark.console.core.entity.CreateTableVariable;
 import org.apache.streampark.console.core.entity.Variable;
+import org.apache.streampark.console.core.service.CreateTableVariableService;
 import org.apache.streampark.console.core.service.VariableService;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -39,6 +41,7 @@ import org.springframework.web.bind.annotation.RestController;
 import javax.validation.Valid;
 import javax.validation.constraints.NotBlank;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -48,6 +51,8 @@ import java.util.List;
 public class VariableController {
 
   @Autowired private VariableService variableService;
+
+  @Autowired private CreateTableVariableService createTableVariableService;
 
   /**
    * Get variable list by page.
@@ -79,7 +84,11 @@ public class VariableController {
     for (Variable v : variableList) {
       v.dataMasking();
     }
-    return RestResponse.success(variableList);
+    List<CreateTableVariable> createTableVariableList =
+        createTableVariableService.findByTeamId(teamId, keyword);
+    List<Object> result = new ArrayList<>(variableList);
+    result.addAll(createTableVariableList);
+    return RestResponse.success(result);
   }
 
   @PostMapping("dependApps")

@@ -21,6 +21,7 @@ import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.base.exception.InternalException;
 import org.apache.streampark.console.core.entity.Application;
 import org.apache.streampark.console.core.entity.FlinkSql;
+import org.apache.streampark.console.core.service.CreateTableVariableService;
 import org.apache.streampark.console.core.service.FlinkSqlService;
 import org.apache.streampark.console.core.service.SqlCompleteService;
 import org.apache.streampark.console.core.service.VariableService;
@@ -51,10 +52,13 @@ public class FlinkSqlController {
 
   @Autowired private VariableService variableService;
 
+  @Autowired private CreateTableVariableService createTableVariableService;
+
   @Autowired private SqlCompleteService sqlComplete;
 
   @PostMapping("verify")
   public RestResponse verify(String sql, Long versionId, Long teamId) {
+    sql = createTableVariableService.replaceVariable(teamId, sql);
     sql = variableService.replaceVariable(teamId, sql);
     FlinkSqlValidationResult flinkSqlValidationResult = flinkSqlService.verifySql(sql, versionId);
     if (!flinkSqlValidationResult.success()) {

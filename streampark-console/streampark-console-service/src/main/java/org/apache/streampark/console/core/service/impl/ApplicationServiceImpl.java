@@ -68,6 +68,7 @@ import org.apache.streampark.console.core.service.ApplicationConfigService;
 import org.apache.streampark.console.core.service.ApplicationLogService;
 import org.apache.streampark.console.core.service.ApplicationService;
 import org.apache.streampark.console.core.service.CommonService;
+import org.apache.streampark.console.core.service.CreateTableVariableService;
 import org.apache.streampark.console.core.service.EffectiveService;
 import org.apache.streampark.console.core.service.FlinkClusterService;
 import org.apache.streampark.console.core.service.FlinkEnvService;
@@ -206,6 +207,8 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
   @Autowired private FlinkClusterService flinkClusterService;
 
   @Autowired private VariableService variableService;
+
+  @Autowired private CreateTableVariableService createTableVariableService;
 
   @Autowired private LogClientService logClient;
 
@@ -1460,7 +1463,9 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
     if (application.isFlinkSqlJob()) {
       FlinkSql flinkSql = flinkSqlService.getEffective(application.getId(), true);
       // Get the sql of the replaced placeholder
-      String realSql = variableService.replaceVariable(application.getTeamId(), flinkSql.getSql());
+      String realSql =
+          createTableVariableService.replaceVariable(application.getTeamId(), flinkSql.getSql());
+      realSql = variableService.replaceVariable(application.getTeamId(), realSql);
       flinkSql.setSql(DeflaterUtils.zipString(realSql));
       extraParameter.put(ConfigConst.KEY_FLINK_SQL(null), flinkSql.getSql());
     }
