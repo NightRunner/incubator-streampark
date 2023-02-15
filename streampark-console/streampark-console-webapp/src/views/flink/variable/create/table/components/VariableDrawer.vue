@@ -122,18 +122,7 @@
         componentProps: { rows: 4 },
         rules: [{ max: 100, message: t('flink.variableCreateTable.form.descriptionMessage') }],
       },
-      {
-        field: 'desensitization',
-        label: t('flink.variableCreateTable.form.desensitization'),
-        component: 'Switch',
-        componentProps: {
-          checkedChildren: 'ON',
-          unCheckedChildren: 'OFF',
-        },
-        defaultValue: false,
-        afterItem: () =>
-          h('span', { class: 'conf-switch' }, t('flink.variableCreateTable.form.desensitizationDesc')),
-      },
+
     ];
   });
 
