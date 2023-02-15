@@ -14,19 +14,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-export default {
-  menu: {
-    system: 'System',
-    userManagement: 'User Management',
-    roleManagement: 'Role Management',
-    menuManagement: 'Menu Management',
-    tokenManagement: 'Token Management',
-    teamManagement: 'Team Management',
-    memberManagement: 'Member Management',
-    project: 'Project',
-    application: 'Application',
-    setting: 'Setting',
-    variable: 'Variable',
-    createTableVariable: 'Create Table Variable',
-  },
-};
+export interface VariableListRecord {
+  id: string;
+  variableCode: string;
+  variableValue: string;
+  description: string;
+  creatorId: string;
+  creatorName: string;
+  teamId: string;
+  createTime: string;
+  modifyTime: string;
+  desensitization: boolean;
+  sortField?: string;
+  sortOrder?: string;
+}
+
+export interface VariableParam {
+  id?: string;
+  variableCode: string;
+  variableValue: string;
+  description: string;
+}
+
+export interface VariableDeleteParam {
+  id: string;
+  variableCode: string;
+  variableValue: string;
+  teamId: string;
+}
+
+export interface BasicTableParams {
+  page: number;
+  pageSize: number;
+  teamId: string;
+  [key: string]: Nullable<string | number>;
+}

@@ -22,35 +22,23 @@ import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.base.exception.ApiAlertException;
 import org.apache.streampark.console.core.entity.Application;
 import org.apache.streampark.console.core.entity.CreateTableVariable;
-import org.apache.streampark.console.core.entity.Variable;
 import org.apache.streampark.console.core.service.CreateTableVariableService;
-import org.apache.streampark.console.core.service.VariableService;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
 import javax.validation.constraints.NotBlank;
 
-import java.util.ArrayList;
-import java.util.List;
-
 @Slf4j
 @Validated
 @RestController
-@RequestMapping("variable")
-public class VariableController {
-
-  @Autowired private VariableService variableService;
+@RequestMapping("variable/create/table")
+public class CreateTableVariableController {
 
   @Autowired private CreateTableVariableService createTableVariableService;
 
@@ -63,90 +51,62 @@ public class VariableController {
    */
   @PostMapping("page")
   @RequiresPermissions("variable:view")
-  public RestResponse page(RestRequest restRequest, Variable variable) {
-    IPage<Variable> page = variableService.page(variable, restRequest);
-    for (Variable v : page.getRecords()) {
-      v.dataMasking();
-    }
+  public RestResponse page(RestRequest restRequest, CreateTableVariable variable) {
+    IPage<CreateTableVariable> page = createTableVariableService.page(variable, restRequest);
     return RestResponse.success(page);
   }
 
-  /**
-   * Get variables through team and search keywords.
-   *
-   * @param teamId
-   * @param keyword Fuzzy search keywords through variable code or description, Nullable.
-   * @return
-   */
-  @PostMapping("list")
-  public RestResponse variableList(@RequestParam Long teamId, String keyword) {
-    List<Variable> variableList = variableService.findByTeamId(teamId, keyword);
-    for (Variable v : variableList) {
-      v.dataMasking();
-    }
-    List<CreateTableVariable> createTableVariableList =
-        createTableVariableService.findByTeamId(teamId, keyword);
-    List<Object> result = new ArrayList<>(variableList);
-
-    for (CreateTableVariable createTableVariable : createTableVariableList) {
-      String originVariableValue = createTableVariable.getVariableValue();
-      String replacedVariableValue = variableService.replaceVariable(teamId, originVariableValue);
-      createTableVariable.setVariableValue(replacedVariableValue);
-    }
-
-    result.addAll(createTableVariableList);
-    return RestResponse.success(result);
-  }
-
   @PostMapping("dependApps")
-  @RequiresPermissions("variable:depend_apps")
-  public RestResponse dependApps(RestRequest restRequest, Variable variable) {
-    IPage<Application> dependApps = variableService.dependAppsPage(variable, restRequest);
+  @RequiresPermissions("variable:create:table:depend_apps")
+  public RestResponse dependApps(RestRequest restRequest, CreateTableVariable variable) {
+    IPage<Application> dependApps =
+        createTableVariableService.dependAppsPage(variable, restRequest);
     return RestResponse.success(dependApps);
   }
 
   @PostMapping("post")
-  @RequiresPermissions("variable:add")
-  public RestResponse addVariable(@Valid Variable variable) {
-    this.variableService.createVariable(variable);
+  @RequiresPermissions("variable:create:table:add")
+  public RestResponse addVariable(@Valid CreateTableVariable variable) {
+    this.createTableVariableService.createVariable(variable);
     return RestResponse.success();
   }
 
   @PutMapping("update")
-  @RequiresPermissions("variable:update")
-  public RestResponse updateVariable(@Valid Variable variable) {
+  @RequiresPermissions("variable:create:table:update")
+  public RestResponse updateVariable(@Valid CreateTableVariable variable) {
     if (variable.getId() == null) {
       throw new ApiAlertException("Sorry, the variable id cannot be null.");
     }
-    Variable findVariable = this.variableService.getById(variable.getId());
+    CreateTableVariable findVariable = this.createTableVariableService.getById(variable.getId());
     if (findVariable == null) {
       throw new ApiAlertException("Sorry, the variable does not exist.");
     }
     if (!findVariable.getVariableCode().equals(variable.getVariableCode())) {
       throw new ApiAlertException("Sorry, the variable code cannot be updated.");
     }
-    this.variableService.updateById(variable);
+    this.createTableVariableService.updateById(variable);
     return RestResponse.success();
   }
 
   @PostMapping("showOriginal")
-  @RequiresPermissions("variable:show_original")
+  @RequiresPermissions("variable:create:table:show_original")
   public RestResponse showOriginal(@RequestParam Long id) {
-    Variable v = this.variableService.getById(id);
+    CreateTableVariable v = this.createTableVariableService.getById(id);
     return RestResponse.success(v);
   }
 
   @DeleteMapping("delete")
-  @RequiresPermissions("variable:delete")
-  public RestResponse deleteVariable(@Valid Variable variable) {
-    this.variableService.deleteVariable(variable);
+  @RequiresPermissions("variable:create:table:delete")
+  public RestResponse deleteVariable(@Valid CreateTableVariable variable) {
+    this.createTableVariableService.deleteVariable(variable);
     return RestResponse.success();
   }
 
   @PostMapping("check/code")
   public RestResponse checkVariableCode(
       @RequestParam Long teamId, @NotBlank(message = "{required}") String variableCode) {
-    boolean result = this.variableService.findByVariableCode(teamId, variableCode) == null;
+    boolean result =
+        this.createTableVariableService.findByVariableCode(teamId, variableCode) == null;
     return RestResponse.success(result);
   }
 }

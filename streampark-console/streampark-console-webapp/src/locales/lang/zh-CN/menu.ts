@@ -27,5 +27,6 @@ export default {
     application: '作业管理',
     setting: '设置中心',
     variable: '变量管理',
+    createTableVariable: '建表变量管理',
   },
 };
