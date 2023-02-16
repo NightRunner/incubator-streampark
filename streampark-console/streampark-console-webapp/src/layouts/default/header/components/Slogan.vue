@@ -30,9 +30,9 @@
 </script>
 <template>
   <div :class="slognClass">
-    <span :class="`${prefixCls}-streampark`">
+    <!-- span :class="`${prefixCls}-streampark`">
       Apache StreamPark,&nbsp; Make&nbsp; stream processing&nbsp;easier!
-    </span>
+    </span -->
   </div>
 </template>
 <style lang="less">

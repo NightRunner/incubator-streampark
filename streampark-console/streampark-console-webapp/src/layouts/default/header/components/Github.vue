@@ -20,7 +20,7 @@
   import { GITHUB_URL } from '/@/settings/siteSetting';
 </script>
 <template>
-  <Tooltip title="Github" placement="bottom" :mouseEnterDelay="0.5">
+  <!-- Tooltip title="Github" placement="bottom" :mouseEnterDelay="0.5">
     <a :href="GITHUB_URL" target="_blank" class="text-black hover:text-black github">
       <Icon icon="ant-design:github-outlined" class="!pl-8px" style="font-size: 19px !important" />
       <img
@@ -33,7 +33,7 @@
         class="pr-8px hidden md:block"
       />
     </a>
-  </Tooltip>
+  </Tooltip -->
 </template>
 <style lang="less">
   [data-theme='dark'] {

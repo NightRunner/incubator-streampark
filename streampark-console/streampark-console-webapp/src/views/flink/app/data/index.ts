@@ -34,9 +34,9 @@ export const getAppColumns = (): BasicColumn[] => [
     fixed: 'left',
     width: 300,
   },
-  { title: t('flink.app.tags'), ellipsis: true, dataIndex: 'tags', width: 150 },
+  /* { title: t('flink.app.tags'), ellipsis: true, dataIndex: 'tags', width: 100 }, */
   { title: t('flink.app.owner'), dataIndex: 'nickName', width: 100 },
-  { title: t('flink.app.flinkVersion'), dataIndex: 'flinkVersion', width: 130 },
+  { title: t('flink.app.flinkVersion'), dataIndex: 'flinkVersion', width: 100 },
   {
     title: t('flink.app.duration'),
     dataIndex: 'duration',
