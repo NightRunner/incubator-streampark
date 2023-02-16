@@ -101,7 +101,7 @@ export function fetchVariableContent(data: Recordable): Promise<any> {
  * get all variable
  * @returns {Promise<any>}
  */
-export function fetchVariableAll(data?: { keyword: string }): Promise<VariableListRecord[]> {
+export function fetchVariableAll(data?: { keyword: string ,appId : string }): Promise<VariableListRecord[]> {
   return defHttp.post({ url: VARIABLE_API.LIST, data });
 }
 

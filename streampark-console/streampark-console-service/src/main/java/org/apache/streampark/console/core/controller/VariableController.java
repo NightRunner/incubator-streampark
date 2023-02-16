@@ -21,10 +21,11 @@ import org.apache.streampark.console.base.domain.RestRequest;
 import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.base.exception.ApiAlertException;
 import org.apache.streampark.console.core.entity.Application;
+import org.apache.streampark.console.core.entity.ApplicationConfig;
 import org.apache.streampark.console.core.entity.CreateTableVariable;
 import org.apache.streampark.console.core.entity.Variable;
-import org.apache.streampark.console.core.service.CreateTableVariableService;
-import org.apache.streampark.console.core.service.VariableService;
+import org.apache.streampark.console.core.enums.ApplicationVariable;
+import org.apache.streampark.console.core.service.*;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +55,10 @@ public class VariableController {
 
   @Autowired private CreateTableVariableService createTableVariableService;
 
+  @Autowired private ApplicationVariableService applicationVariableService;
+
+  @Autowired private ApplicationConfigService applicationConfigService;
+
   /**
    * Get variable list by page.
    *
@@ -79,22 +84,43 @@ public class VariableController {
    * @return
    */
   @PostMapping("list")
-  public RestResponse variableList(@RequestParam Long teamId, String keyword) {
+  public RestResponse variableList(
+      @RequestParam Long teamId, @RequestParam(required = false) String appId, String keyword) {
     List<Variable> variableList = variableService.findByTeamId(teamId, keyword);
     for (Variable v : variableList) {
       v.dataMasking();
     }
     List<CreateTableVariable> createTableVariableList =
         createTableVariableService.findByTeamId(teamId, keyword);
+
     List<Object> result = new ArrayList<>(variableList);
+
+    ApplicationConfig applicationConfig = applicationConfigService.getById(appId);
 
     for (CreateTableVariable createTableVariable : createTableVariableList) {
       String originVariableValue = createTableVariable.getVariableValue();
       String replacedVariableValue = variableService.replaceVariable(teamId, originVariableValue);
+      replacedVariableValue =
+          applicationVariableService.replaceVariable(replacedVariableValue, applicationConfig);
       createTableVariable.setVariableValue(replacedVariableValue);
     }
 
     result.addAll(createTableVariableList);
+
+    for (ApplicationVariable value : ApplicationVariable.values()) {
+      Variable variable = new Variable();
+      if (ApplicationVariable.APP_ID.equals(value) && applicationConfig != null) {
+        variable.setVariableValue(applicationConfig.getAppId().toString());
+      } else {
+        variable.setVariableValue(value.getCode());
+      }
+      variable.setVariableCode(value.getCode());
+      variable.setDescription("");
+      variable.setTeamId(teamId);
+      variable.setDesensitization(false);
+      result.add(variable);
+    }
+
     return RestResponse.success(result);
   }
 

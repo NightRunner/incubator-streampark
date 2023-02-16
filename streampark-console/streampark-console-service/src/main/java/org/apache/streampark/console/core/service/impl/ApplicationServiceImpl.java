@@ -60,22 +60,7 @@ import org.apache.streampark.console.core.enums.OptionState;
 import org.apache.streampark.console.core.mapper.ApplicationMapper;
 import org.apache.streampark.console.core.metrics.flink.JobsOverview;
 import org.apache.streampark.console.core.runner.EnvInitializer;
-import org.apache.streampark.console.core.service.AppBuildPipeService;
-import org.apache.streampark.console.core.service.ApplicationBackUpService;
-import org.apache.streampark.console.core.service.ApplicationConfigService;
-import org.apache.streampark.console.core.service.ApplicationLogService;
-import org.apache.streampark.console.core.service.ApplicationService;
-import org.apache.streampark.console.core.service.CommonService;
-import org.apache.streampark.console.core.service.CreateTableVariableService;
-import org.apache.streampark.console.core.service.EffectiveService;
-import org.apache.streampark.console.core.service.FlinkClusterService;
-import org.apache.streampark.console.core.service.FlinkEnvService;
-import org.apache.streampark.console.core.service.FlinkSqlService;
-import org.apache.streampark.console.core.service.LogClientService;
-import org.apache.streampark.console.core.service.ProjectService;
-import org.apache.streampark.console.core.service.SavePointService;
-import org.apache.streampark.console.core.service.SettingService;
-import org.apache.streampark.console.core.service.VariableService;
+import org.apache.streampark.console.core.service.*;
 import org.apache.streampark.console.core.task.FlinkRESTAPIWatcher;
 import org.apache.streampark.console.core.utils.YarnQueueLabelExpression;
 import org.apache.streampark.flink.client.FlinkClient;
@@ -210,6 +195,8 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
   @Autowired private VariableService variableService;
 
   @Autowired private CreateTableVariableService createTableVariableService;
+
+  @Autowired private ApplicationVariableService applicationVariableService;
 
   @Autowired private LogClientService logClient;
 
@@ -1483,6 +1470,8 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
       String realSql =
           createTableVariableService.replaceVariable(application.getTeamId(), flinkSql.getSql());
       realSql = variableService.replaceVariable(application.getTeamId(), realSql);
+      realSql = applicationVariableService.replaceVariable(realSql, applicationConfig);
+
       flinkSql.setSql(DeflaterUtils.zipString(realSql));
       extraParameter.put(ConfigConst.KEY_FLINK_SQL(null), flinkSql.getSql());
     }

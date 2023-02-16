@@ -52,6 +52,7 @@ import { FlinkCluster } from '/@/api/flink/setting/types/flinkCluster.type';
 import { ClusterStateEnum, ExecModeEnum, JobTypeEnum } from '/@/enums/flinkEnum';
 import { isK8sExecMode } from '../utils';
 import { useI18n } from '/@/hooks/web/useI18n';
+import { useRoute } from 'vue-router';
 const { t } = useI18n();
 export interface HistoryRecord {
   k8sNamespace: Array<string>;
@@ -564,7 +565,9 @@ export const useCreateAndEditSchema = (
       historyRecord.flinkImage = res;
     });
 
-    fetchVariableAll().then((res) => {
+    const route = useRoute();
+    const appId = route.query.appId;
+    fetchVariableAll({appId:appId as string}).then((res) => {
       suggestions.value = res.map((v) => {
         return {
           text: v.variableCode,
