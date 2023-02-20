@@ -40,7 +40,7 @@ knife4j:
     password: streampark
 
 spring:
-  profiles.active: h2 #[h2,pgsql,mysql]
+  profiles.active: mysql #[h2,pgsql,mysql]
   application.name: StreamPark
   devtools.restart.enabled: false
   mvc.pathmatch.matching-strategy: ant_path_matcher

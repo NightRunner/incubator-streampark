@@ -191,7 +191,7 @@ public class EnvInitializer implements ApplicationRunner {
 
       for (File file : client.listFiles(fileFilter)) {
         log.info("load client:{} to {}", file.getName(), appClient);
-        fsOperator.upload(file.getAbsolutePath(), appClient);
+        //        fsOperator.upload(file.getAbsolutePath(), appClient);
       }
 
       // 2.2) upload plugin jar.
