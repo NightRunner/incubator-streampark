@@ -15,33 +15,31 @@
  * limitations under the License.
  */
 
-package com.github.benmanes.caffeine.cache;
+package org.apache.streampark.flink.client.bean
 
-import org.junit.jupiter.api.Test;
+import java.util.{Map => JavaMap}
 
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
+import org.apache.streampark.common.conf.{FlinkVersion, K8sFlinkConfig}
+import org.apache.streampark.common.enums.ExecutionMode
 
-class RefreshCacheTest {
+import javax.annotation.Nullable
 
-  Cache<String, String> caffeine = null;
+trait SavepointRequestTrait {
 
-  @Test
-  void cache() throws Exception {
-    if (caffeine == null) {
-      caffeine =
-          Caffeine.newBuilder().refreshAfterWrite(50, TimeUnit.MILLISECONDS).build(this::refresh);
-    }
-    caffeine.put("config", "hadoop");
-    int count = 4;
-    while (count > 0) {
-      System.out.println(caffeine.getIfPresent("config"));
-      Thread.sleep(100L);
-      --count;
-    }
-  }
+  val flinkVersion: FlinkVersion
 
-  public String refresh(String value) {
-    return UUID.randomUUID() + "@" + value;
-  }
+  val executionMode: ExecutionMode
+
+  val clusterId: String
+
+  val jobId: String
+
+  val withSavepoint: Boolean = true
+
+  val savepointPath: String
+
+  val kubernetesNamespace: String = K8sFlinkConfig.DEFAULT_KUBERNETES_NAMESPACE
+
+  @Nullable val properties: JavaMap[String, Any]
+
 }
