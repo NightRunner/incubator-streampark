@@ -25,7 +25,10 @@ import org.apache.streampark.console.core.entity.ApplicationConfig;
 import org.apache.streampark.console.core.entity.CreateTableVariable;
 import org.apache.streampark.console.core.entity.Variable;
 import org.apache.streampark.console.core.enums.ApplicationVariable;
-import org.apache.streampark.console.core.service.*;
+import org.apache.streampark.console.core.service.ApplicationConfigService;
+import org.apache.streampark.console.core.service.ApplicationVariableService;
+import org.apache.streampark.console.core.service.CreateTableVariableService;
+import org.apache.streampark.console.core.service.VariableService;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import lombok.extern.slf4j.Slf4j;

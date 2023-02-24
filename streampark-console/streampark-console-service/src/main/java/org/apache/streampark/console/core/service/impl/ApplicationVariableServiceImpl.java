@@ -37,7 +37,9 @@ public class ApplicationVariableServiceImpl implements ApplicationVariableServic
     }
 
     for (ApplicationVariable value : ApplicationVariable.values()) {
-      if (!mixed.contains(value.getPlaceHolder())) continue;
+      if (!mixed.contains(value.getPlaceHolder())) {
+        continue;
+      }
       if (ApplicationVariable.APP_ID.equals(value)) {
         mixed = mixed.replace(value.getPlaceHolder(), applicationConfig.getAppId().toString());
       }
