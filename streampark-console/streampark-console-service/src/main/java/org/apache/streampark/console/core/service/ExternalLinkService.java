@@ -15,16 +15,21 @@
  * limitations under the License.
  */
 
-package org.apache.streampark.flink.client.bean
+package org.apache.streampark.console.core.service;
 
-import java.util.{Map => JavaMap}
-import javax.annotation.Nullable
+import org.apache.streampark.console.core.entity.ExternalLink;
 
-import org.apache.streampark.common.conf.FlinkVersion
-import org.apache.streampark.common.enums.ExecutionMode
+import com.baomidou.mybatisplus.extension.service.IService;
 
-case class ShutDownRequest(flinkVersion: FlinkVersion,
-                           executionMode: ExecutionMode,
-                           @Nullable properties: JavaMap[String, Any],
-                           clusterId: String,
-                           @Nullable kubernetesDeployParam: KubernetesDeployParam)
+import java.util.List;
+
+public interface ExternalLinkService extends IService<ExternalLink> {
+
+  void create(ExternalLink externalLink);
+
+  void delete(Long linkId);
+
+  void update(ExternalLink externalLink);
+
+  List<ExternalLink> render(Long appId);
+}

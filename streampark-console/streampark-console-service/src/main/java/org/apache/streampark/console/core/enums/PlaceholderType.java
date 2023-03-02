@@ -15,16 +15,25 @@
  * limitations under the License.
  */
 
-package org.apache.streampark.flink.client.bean
+package org.apache.streampark.console.core.enums;
 
-import java.util.{Map => JavaMap}
-import javax.annotation.Nullable
+import java.io.Serializable;
 
-import org.apache.streampark.common.conf.FlinkVersion
-import org.apache.streampark.common.enums.ExecutionMode
+/** configFile Type enum */
+public enum PlaceholderType implements Serializable {
+  JOB_ID("job_id"),
 
-case class ShutDownRequest(flinkVersion: FlinkVersion,
-                           executionMode: ExecutionMode,
-                           @Nullable properties: JavaMap[String, Any],
-                           clusterId: String,
-                           @Nullable kubernetesDeployParam: KubernetesDeployParam)
+  JOB_NAME("job_name"),
+
+  YARN_ID("yarn_id");
+
+  private final String name;
+
+  PlaceholderType(String name) {
+    this.name = name;
+  }
+
+  public String get() {
+    return this.name;
+  }
+}
