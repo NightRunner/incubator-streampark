@@ -1,8 +1,5 @@
 package org.apache.streampark.console.core.controller;
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.google.common.collect.Lists;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.streampark.console.base.domain.RestRequest;
 import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.base.exception.ApiAlertException;
@@ -15,6 +12,10 @@ import org.apache.streampark.console.core.enums.AppExistsState;
 import org.apache.streampark.console.core.service.*;
 import org.apache.streampark.flink.core.FlinkSqlValidationResult;
 import org.apache.streampark.flink.packer.pipeline.PipelineStatus;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.google.common.collect.Lists;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -129,8 +130,7 @@ public class ApplicationAdapterController {
         : RestResponse.success(true).data(data);
   }
 
-  @Autowired
-  VariableService variableService;
+  @Autowired VariableService variableService;
 
   @ApiAccess
   @PostMapping("checkSql")

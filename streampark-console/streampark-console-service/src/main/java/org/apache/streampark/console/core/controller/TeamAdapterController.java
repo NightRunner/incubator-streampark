@@ -17,16 +17,13 @@
 
 package org.apache.streampark.console.core.controller;
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.shiro.authz.annotation.RequiresPermissions;
-import org.apache.streampark.console.base.domain.RestRequest;
 import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.core.annotation.ApiAccess;
 import org.apache.streampark.console.system.entity.Team;
 import org.apache.streampark.console.system.service.TeamService;
+
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
@@ -51,5 +48,4 @@ public class TeamAdapterController {
   public RestResponse addTeam(@Valid Team team) {
     return RestResponse.success(this.teamService.createTeam(team));
   }
-
 }
