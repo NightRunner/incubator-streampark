@@ -31,7 +31,7 @@ public interface TeamService extends IService<Team> {
 
   Team findByName(String teamName);
 
-  void createTeam(Team team);
+  Team createTeam(Team team);
 
   void deleteTeam(Long teamId);
 

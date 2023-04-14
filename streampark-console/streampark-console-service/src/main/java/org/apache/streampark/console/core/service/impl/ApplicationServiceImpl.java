@@ -792,8 +792,8 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
         FlinkSql flinkSql = new FlinkSql(newApp);
         flinkSqlService.create(flinkSql);
       }
-      if (newApp.getConfig() != null) {
-        ApplicationConfig copyConfig = configService.getEffective(appParam.getId());
+      ApplicationConfig copyConfig = configService.getEffective(appParam.getId());
+        if (copyConfig != null) {
         ApplicationConfig config = new ApplicationConfig();
         config.setAppId(newApp.getId());
         config.setFormat(copyConfig.getFormat());
@@ -856,6 +856,7 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
 
       appParam.setJobType(application.getJobType());
       // changes to the following parameters need to be re-launched to take effect
+        application.setTeamId(appParam.getTeamId());
       application.setJobName(appParam.getJobName());
       application.setVersionId(appParam.getVersionId());
       application.setArgs(appParam.getArgs());

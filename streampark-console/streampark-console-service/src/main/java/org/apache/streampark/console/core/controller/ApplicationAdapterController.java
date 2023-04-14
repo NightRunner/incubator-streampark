@@ -1,5 +1,8 @@
 package org.apache.streampark.console.core.controller;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.google.common.collect.Lists;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.streampark.console.base.domain.RestRequest;
 import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.base.exception.ApiAlertException;
@@ -10,14 +13,13 @@ import org.apache.streampark.console.core.entity.Application;
 import org.apache.streampark.console.core.entity.ApplicationLog;
 import org.apache.streampark.console.core.enums.AppExistsState;
 import org.apache.streampark.console.core.service.*;
+import org.apache.streampark.flink.core.FlinkSqlValidationResult;
 import org.apache.streampark.flink.packer.pipeline.PipelineStatus;
-
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.google.common.collect.Lists;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import springfox.documentation.annotations.ApiIgnore;
 
@@ -48,6 +50,10 @@ public class ApplicationAdapterController {
   public RestResponse get(Application app) {
     Application application = applicationService.getApp(app);
     application.setFlinkSql(new String(Base64.getDecoder().decode(application.getFlinkSql())));
+    String config = application.getConfig();
+    if (StringUtils.hasText(config)) {
+      application.setConfig(new String(Base64.getDecoder().decode(config)));
+    }
 
     Map<Long, PipelineStatus> pipeStates =
         appBuildPipeService.listPipelineStatus(Lists.newArrayList(application.getId()));
@@ -123,9 +129,44 @@ public class ApplicationAdapterController {
         : RestResponse.success(true).data(data);
   }
 
+  @Autowired
+  VariableService variableService;
+
+  @ApiAccess
+  @PostMapping("checkSql")
+  public RestResponse checkSql(
+      @RequestParam String sql,
+      @RequestParam Long teamId,
+      @RequestParam(required = false, defaultValue = "100000") Long versionId) {
+    sql = variableService.replaceVariable(teamId, sql);
+    FlinkSqlValidationResult flinkSqlValidationResult = flinkSqlService.verifySql(sql, versionId);
+    if (!flinkSqlValidationResult.success()) {
+      // record error type, such as error sql, reason and error start/end line
+      String exception = flinkSqlValidationResult.exception();
+      RestResponse response =
+          RestResponse.success()
+              .data(false)
+              .message(exception)
+              .put("type", flinkSqlValidationResult.failedType().getValue())
+              .put("start", flinkSqlValidationResult.lineStart())
+              .put("end", flinkSqlValidationResult.lineEnd());
+
+      if (flinkSqlValidationResult.errorLine() > 0) {
+        response
+            .put("start", flinkSqlValidationResult.errorLine())
+            .put("end", flinkSqlValidationResult.errorLine() + 1);
+      }
+      return response;
+    } else {
+      return RestResponse.success(true);
+    }
+  }
+
   @ApiAccess
   @RequestMapping("update")
   public RestResponse update(Application app) {
+    String encode = Base64.getEncoder().encodeToString(app.getConfig().getBytes());
+    app.setConfig(encode);
     applicationService.update(app);
     return RestResponse.success(true);
   }
