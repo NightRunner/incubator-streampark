@@ -19,14 +19,16 @@ package org.apache.streampark.console.core.controller;
 
 import org.apache.streampark.console.base.domain.RestRequest;
 import org.apache.streampark.console.base.domain.RestResponse;
-import org.apache.streampark.console.base.exception.ApiAlertException;
 import org.apache.streampark.console.core.entity.Application;
 import org.apache.streampark.console.core.entity.Variable;
 import org.apache.streampark.console.core.service.VariableService;
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -41,6 +43,7 @@ import javax.validation.constraints.NotBlank;
 
 import java.util.List;
 
+@Tag(name = "VARIABLE_TAG")
 @Slf4j
 @Validated
 @RestController
@@ -56,6 +59,7 @@ public class VariableController {
    * @param variable
    * @return
    */
+  @Operation(summary = "List variables")
   @PostMapping("page")
   @RequiresPermissions("variable:view")
   public RestResponse page(RestRequest restRequest, Variable variable) {
@@ -73,6 +77,7 @@ public class VariableController {
    * @param keyword Fuzzy search keywords through variable code or description, Nullable.
    * @return
    */
+  @Operation(summary = "List variables")
   @PostMapping("list")
   public RestResponse variableList(@RequestParam Long teamId, String keyword) {
     List<Variable> variableList = variableService.findByTeamId(teamId, keyword);
@@ -82,6 +87,7 @@ public class VariableController {
     return RestResponse.success(variableList);
   }
 
+  @Operation(summary = "List the variable depend applications")
   @PostMapping("dependApps")
   @RequiresPermissions("variable:depend_apps")
   public RestResponse dependApps(RestRequest restRequest, Variable variable) {
@@ -89,6 +95,7 @@ public class VariableController {
     return RestResponse.success(dependApps);
   }
 
+  @Operation(summary = "Create variable")
   @PostMapping("post")
   @RequiresPermissions("variable:add")
   public RestResponse addVariable(@Valid Variable variable) {
@@ -96,23 +103,15 @@ public class VariableController {
     return RestResponse.success();
   }
 
+  @Operation(summary = "Update variable")
   @PutMapping("update")
   @RequiresPermissions("variable:update")
   public RestResponse updateVariable(@Valid Variable variable) {
-    if (variable.getId() == null) {
-      throw new ApiAlertException("Sorry, the variable id cannot be null.");
-    }
-    Variable findVariable = this.variableService.getById(variable.getId());
-    if (findVariable == null) {
-      throw new ApiAlertException("Sorry, the variable does not exist.");
-    }
-    if (!findVariable.getVariableCode().equals(variable.getVariableCode())) {
-      throw new ApiAlertException("Sorry, the variable code cannot be updated.");
-    }
-    this.variableService.updateById(variable);
+    variableService.updateVariable(variable);
     return RestResponse.success();
   }
 
+  @Operation(summary = "Get variable")
   @PostMapping("showOriginal")
   @RequiresPermissions("variable:show_original")
   public RestResponse showOriginal(@RequestParam Long id) {
@@ -120,6 +119,7 @@ public class VariableController {
     return RestResponse.success(v);
   }
 
+  @Operation(summary = "Delete variable")
   @DeleteMapping("delete")
   @RequiresPermissions("variable:delete")
   public RestResponse deleteVariable(@Valid Variable variable) {
@@ -127,6 +127,7 @@ public class VariableController {
     return RestResponse.success();
   }
 
+  @Operation(summary = "Check variable code")
   @PostMapping("check/code")
   public RestResponse checkVariableCode(
       @RequestParam Long teamId, @NotBlank(message = "{required}") String variableCode) {

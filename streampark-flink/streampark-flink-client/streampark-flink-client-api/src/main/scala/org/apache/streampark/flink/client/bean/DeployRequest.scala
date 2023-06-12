@@ -17,28 +17,30 @@
 
 package org.apache.streampark.flink.client.bean
 
-import java.io.File
-import java.util.{Map => JavaMap}
-import javax.annotation.Nullable
+import org.apache.streampark.common.conf.{FlinkVersion, Workspace}
+import org.apache.streampark.common.enums.{ExecutionMode, FlinkK8sRestExposedType}
+import org.apache.streampark.flink.util.FlinkUtils
 
 import org.apache.commons.io.FileUtils
 import org.apache.flink.kubernetes.configuration.KubernetesConfigOptions
 
-import org.apache.streampark.common.conf.{FlinkVersion, Workspace}
-import org.apache.streampark.common.enums.{ExecutionMode, FlinkK8sRestExposedType}
-import org.apache.streampark.common.util.FlinkUtils
+import javax.annotation.Nullable
+
+import java.io.File
+import java.util.{Map => JavaMap}
 
 case class DeployRequest(
     flinkVersion: FlinkVersion,
-    clusterId: String,
     executionMode: ExecutionMode,
     properties: JavaMap[String, Any],
+    clusterId: String,
     @Nullable k8sDeployParam: KubernetesDeployParam) {
 
   private[client] lazy val hdfsWorkspace = {
 
     /**
-     * You must keep the flink version and configuration in the native flink and hdfs exactly the same.
+     * You must keep the flink version and configuration in the native flink and hdfs exactly the
+     * same.
      */
     val workspace = Workspace.remote
     val flinkHome = flinkVersion.flinkHome
@@ -56,7 +58,8 @@ case class DeployRequest(
       flinkPlugins = s"$flinkHdfsHome/plugins",
       flinkDistJar = FlinkUtils.getFlinkDistJar(flinkHome),
       appJars = workspace.APP_JARS,
-      appPlugins = workspace.APP_PLUGINS)
+      appPlugins = workspace.APP_PLUGINS
+    )
   }
 }
 
@@ -66,4 +69,4 @@ case class KubernetesDeployParam(
     kubeConf: String = "~/.kube/config",
     serviceAccount: String = KubernetesConfigOptions.KUBERNETES_SERVICE_ACCOUNT.defaultValue(),
     flinkImage: String = KubernetesConfigOptions.CONTAINER_IMAGE.defaultValue(),
-    @Nullable flinkRestExposedType: FlinkK8sRestExposedType = FlinkK8sRestExposedType.ClusterIP)
+    @Nullable flinkRestExposedType: FlinkK8sRestExposedType = FlinkK8sRestExposedType.CLUSTER_IP)

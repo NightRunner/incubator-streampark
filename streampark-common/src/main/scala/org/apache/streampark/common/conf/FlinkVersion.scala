@@ -16,6 +16,8 @@
  */
 package org.apache.streampark.common.conf
 
+import org.apache.streampark.common.util.{CommandUtils, Logger}
+
 import java.io.File
 import java.net.{URL => NetURL}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
@@ -25,18 +27,15 @@ import java.util.regex.Pattern
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 
-import org.apache.streampark.common.util.{CommandUtils, Logger}
-
-/**
- * @param flinkHome actual flink home that must be a readable local path
- */
+/** @param flinkHome actual flink home that must be a readable local path */
 class FlinkVersion(val flinkHome: String) extends java.io.Serializable with Logger {
 
   private[this] lazy val FLINK_VER_PATTERN = Pattern.compile("^(\\d+\\.\\d+)(\\.)?.*$")
 
   private[this] lazy val FLINK_VERSION_PATTERN = Pattern.compile("^Version: (.*), Commit ID: (.*)$")
 
-  private[this] lazy val FLINK_SCALA_VERSION_PATTERN = Pattern.compile("^flink-dist_(.*)-(.*).jar$")
+  private[this] lazy val FLINK_SCALA_VERSION_PATTERN =
+    Pattern.compile("^flink-dist_(.*)-[0-9].*.jar$")
 
   lazy val scalaVersion: String = {
     val matcher = FLINK_SCALA_VERSION_PATTERN.matcher(flinkDistJar.getName)
@@ -54,7 +53,9 @@ class FlinkVersion(val flinkHome: String) extends java.io.Serializable with Logg
     require(flinkHome != null, "[StreamPark] flinkHome must not be null.")
     require(new File(flinkHome).exists(), "[StreamPark] flinkHome must be exists.")
     val lib = new File(s"$flinkHome/lib")
-    require(lib.exists() && lib.isDirectory, s"[StreamPark] $flinkHome/lib must be exists and must be directory.")
+    require(
+      lib.exists() && lib.isDirectory,
+      s"[StreamPark] $flinkHome/lib must be exists and must be directory.")
     lib
   }
 
@@ -62,7 +63,8 @@ class FlinkVersion(val flinkHome: String) extends java.io.Serializable with Logg
 
   lazy val version: String = {
     val flinkVersion = new AtomicReference[String]
-    val cmd = List(s"java -classpath ${flinkDistJar.getAbsolutePath} org.apache.flink.client.cli.CliFrontend --version")
+    val cmd = List(
+      s"java -classpath ${flinkDistJar.getAbsolutePath} org.apache.flink.client.cli.CliFrontend --version")
     val success = new AtomicBoolean(false)
     val buffer = new mutable.StringBuilder
     CommandUtils.execute(
@@ -77,7 +79,8 @@ class FlinkVersion(val flinkHome: String) extends java.io.Serializable with Logg
             flinkVersion.set(matcher.group(1))
           }
         }
-      })
+      }
+    )
     logInfo(buffer.toString())
     if (!success.get()) {
       throw new IllegalStateException(s"[StreamPark] parse flink version failed. $buffer")
@@ -103,10 +106,23 @@ class FlinkVersion(val flinkHome: String) extends java.io.Serializable with Logg
       case x if x.isEmpty =>
         throw new IllegalArgumentException(s"[StreamPark] can no found flink-dist jar in $flinkLib")
       case x if x.length > 1 =>
-        throw new IllegalArgumentException(s"[StreamPark] found multiple flink-dist jar in $flinkLib")
+        throw new IllegalArgumentException(
+          s"[StreamPark] found multiple flink-dist jar in $flinkLib")
       case _ =>
     }
     distJar.head
+  }
+
+  def checkVersion(throwException: Boolean = true): Boolean = {
+    version.split("\\.").map(_.trim.toInt) match {
+      case Array(1, v, _) if v >= 12 && v <= 17 => true
+      case _ =>
+        if (throwException) {
+          throw new UnsupportedOperationException(s"Unsupported flink version: $version")
+        } else {
+          false
+        }
+    }
   }
 
   // StreamPark flink shims version, like "streampark-flink-shims_flink-1.13"

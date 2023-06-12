@@ -17,34 +17,47 @@
 
 package org.apache.streampark.console.core.service;
 
-import org.apache.streampark.console.StreamParkConsoleBootstrap;
+import org.apache.streampark.common.enums.ExecutionMode;
+import org.apache.streampark.console.SpringTestBase;
 import org.apache.streampark.console.core.entity.Application;
+import org.apache.streampark.console.core.entity.YarnQueue;
+import org.apache.streampark.console.core.service.impl.ApplicationServiceImpl;
 
 import org.apache.http.entity.ContentType;
+
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import org.h2.store.fs.FileUtils;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.nio.file.Path;
 import java.util.Date;
 
-/** org.apache.streampark.console.core.service.ApplicationServiceTest */
-@ExtendWith(SpringExtension.class)
-@SpringBootTest(
-    classes = StreamParkConsoleBootstrap.class,
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class ApplicationServiceTest {
+import static org.assertj.core.api.Assertions.assertThat;
+
+/** org.apache.streampark.console.core.service.ApplicationServiceTest. */
+class ApplicationServiceTest extends SpringTestBase {
 
   @Autowired private ApplicationService applicationService;
 
+  @Autowired private YarnQueueService yarnQueueService;
+
+  @AfterEach
+  void cleanTestRecordsInDatabase() {
+    applicationService.remove(new QueryWrapper<>());
+    yarnQueueService.remove(new QueryWrapper<>());
+  }
+
   @Test
-  void revokeTest() {
+  void testRevoke() {
     Date now = new Date();
     Application app = new Application();
     app.setId(100001L);
@@ -54,7 +67,7 @@ class ApplicationServiceTest {
     app.setVersionId(1L);
     app.setK8sNamespace("default");
     app.setState(0);
-    app.setLaunch(2);
+    app.setRelease(2);
     app.setBuild(true);
     app.setRestartSize(0);
     app.setOptionState(0);
@@ -77,11 +90,12 @@ class ApplicationServiceTest {
     app.setDrain(false);
     app.setAllowNonRestored(false);
 
-    Assertions.assertDoesNotThrow(() -> applicationService.updateLaunch(app));
+    Assertions.assertDoesNotThrow(() -> applicationService.updateRelease(app));
   }
 
   @Test
-  void start() throws Exception {
+  @Disabled("We couldn't do integration test with external services or components.")
+  void testStart() throws Exception {
     Application application = new Application();
     application.setId(1304056220683497473L);
     application.setRestart(false);
@@ -92,14 +106,69 @@ class ApplicationServiceTest {
   }
 
   @Test
-  void uploadTest() throws Exception {
-    File file = new File(""); // specify the file path
+  void testUpload(@TempDir Path tempDir) throws Exception {
+    // specify the file path
+    File fileToStoreUploadFile =
+        new File(tempDir.toFile().getAbsolutePath() + "/fileToStoreUploadFile");
+    FileUtils.createFile(fileToStoreUploadFile.getAbsolutePath());
+
+    File fileToUpload = new File(tempDir.toFile().getAbsolutePath() + "/fileToUpload.jar");
+    FileUtils.createFile(fileToUpload.getAbsolutePath());
+    assertThat(fileToUpload).exists();
     MultipartFile mulFile =
         new MockMultipartFile(
-            "", // fileName (eg: streampark.jar)
-            "", // originalFilename (eg: path + fileName = /tmp/file/streampark.jar)
+            "test", // fileName (eg: streampark.jar)
+            fileToUpload.getAbsolutePath(), // originalFilename (eg: path + fileName =
+            // /tmp/file/streampark.jar)
             ContentType.APPLICATION_OCTET_STREAM.toString(),
-            new FileInputStream(file));
+            new FileInputStream(fileToStoreUploadFile));
     applicationService.upload(mulFile);
+  }
+
+  @Test
+  void testCheckQueueValidationIfNeeded() {
+    ApplicationServiceImpl applicationServiceImpl = (ApplicationServiceImpl) applicationService;
+
+    // ------- Test it for the create operation. -------
+    final String queueLabel = "queue1@label1";
+    final Long targetTeamId = 1L;
+
+    // Test application with available queue
+    YarnQueue yarnQueue = mockYarnQueue(targetTeamId, queueLabel);
+    yarnQueueService.save(yarnQueue);
+    Application application =
+        mockYarnModeJobApp(targetTeamId, "app1", queueLabel, ExecutionMode.YARN_APPLICATION);
+    assertThat(applicationServiceImpl.validateQueueIfNeeded(application)).isTrue();
+
+    // Test application without available queue
+    application.setYarnQueue("non-exited-queue");
+    assertThat(applicationServiceImpl.validateQueueIfNeeded(application)).isFalse();
+
+    // ------- Test it for the update operation. -------
+    final String queueLabel1 = "queue1@label1";
+    final String queueLabel2 = "queue1@label2";
+    final String nonExistedQueue = "nonExistedQueue";
+    final String appName = "app1";
+    final Long teamId2 = 2L;
+
+    // Test update for both versions in yarn-app or per-job with same yarn queue
+    Application app1 =
+        mockYarnModeJobApp(teamId2, appName, queueLabel1, ExecutionMode.YARN_APPLICATION);
+    Application app2 =
+        mockYarnModeJobApp(teamId2, appName, queueLabel1, ExecutionMode.YARN_PER_JOB);
+    assertThat(applicationServiceImpl.validateQueueIfNeeded(app1, app2)).isTrue();
+
+    // Test available queue
+    YarnQueue yarnQueueLabel1 = mockYarnQueue(teamId2, queueLabel1);
+    yarnQueueService.save(yarnQueueLabel1);
+    YarnQueue yarnQueueLabel2 = mockYarnQueue(teamId2, queueLabel2);
+    yarnQueueService.save(yarnQueueLabel2);
+    app2.setYarnQueue(queueLabel2);
+    assertThat(applicationServiceImpl.validateQueueIfNeeded(app1, app2)).isTrue();
+
+    // Test non-existed queue
+    app1.setExecutionMode(ExecutionMode.KUBERNETES_NATIVE_APPLICATION.getMode());
+    app2.setYarnQueue(nonExistedQueue);
+    assertThat(applicationServiceImpl.validateQueueIfNeeded(app1, app2)).isFalse();
   }
 }

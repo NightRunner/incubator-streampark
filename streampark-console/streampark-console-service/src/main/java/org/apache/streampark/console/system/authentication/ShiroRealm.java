@@ -33,6 +33,7 @@ import org.apache.shiro.authz.AuthorizationInfo;
 import org.apache.shiro.authz.SimpleAuthorizationInfo;
 import org.apache.shiro.realm.AuthorizingRealm;
 import org.apache.shiro.subject.PrincipalCollection;
+
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Set;
@@ -90,7 +91,7 @@ public class ShiroRealm extends AuthorizingRealm {
       throw new AuthenticationException("ERROR Incorrect username or password!");
     }
 
-    if (!JWTUtil.verify(token, username, user.getPassword())) {
+    if (!JWTUtil.verify(token, username)) {
       // Check whether the token belongs to the api and whether the permission is valid
       String tokenDb = WebUtils.encryptToken(token);
       boolean effective = accessTokenService.checkTokenEffective(user.getUserId(), tokenDb);

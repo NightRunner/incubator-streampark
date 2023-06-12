@@ -22,17 +22,33 @@ package org.apache.streampark.console.core.aspect;
 import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.base.exception.ApiAlertException;
 import org.apache.streampark.console.core.annotation.ApiAccess;
+import org.apache.streampark.console.core.annotation.PermissionAction;
+import org.apache.streampark.console.core.entity.Application;
+import org.apache.streampark.console.core.enums.PermissionType;
+import org.apache.streampark.console.core.enums.UserType;
+import org.apache.streampark.console.core.service.ApplicationService;
+import org.apache.streampark.console.core.service.CommonService;
 import org.apache.streampark.console.core.task.FlinkRESTAPIWatcher;
 import org.apache.streampark.console.system.entity.AccessToken;
+import org.apache.streampark.console.system.entity.Member;
+import org.apache.streampark.console.system.entity.User;
+import org.apache.streampark.console.system.service.MemberService;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.shiro.SecurityUtils;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.shiro.SecurityUtils;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.DefaultParameterNameDiscoverer;
+import org.springframework.expression.EvaluationContext;
+import org.springframework.expression.Expression;
+import org.springframework.expression.spel.standard.SpelExpressionParser;
+import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -43,6 +59,9 @@ import java.util.Objects;
 public class StreamParkAspect {
 
   @Autowired private FlinkRESTAPIWatcher flinkRESTAPIWatcher;
+  @Autowired private CommonService commonService;
+  @Autowired private MemberService memberService;
+  @Autowired private ApplicationService applicationService;
 
   @Pointcut(
       "execution(public"
@@ -76,5 +95,77 @@ public class StreamParkAspect {
     Object target = joinPoint.proceed();
     flinkRESTAPIWatcher.init();
     return target;
+  }
+
+  @Pointcut("@annotation(org.apache.streampark.console.core.annotation.PermissionAction)")
+  public void permissionAction() {}
+
+  @Around("permissionAction()")
+  public RestResponse permissionAction(ProceedingJoinPoint joinPoint) throws Throwable {
+    MethodSignature methodSignature = (MethodSignature) joinPoint.getSignature();
+    PermissionAction permissionAction =
+        methodSignature.getMethod().getAnnotation(PermissionAction.class);
+
+    User currentUser = commonService.getCurrentUser();
+    ApiAlertException.throwIfNull(currentUser, "Permission denied, please login first.");
+
+    boolean isAdmin = currentUser.getUserType() == UserType.ADMIN;
+
+    if (!isAdmin) {
+      PermissionType permissionType = permissionAction.type();
+      Long paramId = getParamId(joinPoint, methodSignature, permissionAction.id());
+
+      switch (permissionType) {
+        case USER:
+          ApiAlertException.throwIfTrue(
+              !currentUser.getUserId().equals(paramId),
+              "Permission denied, only user himself can access this permission");
+          break;
+        case TEAM:
+          Member member = memberService.findByUserName(paramId, currentUser.getUsername());
+          ApiAlertException.throwIfTrue(
+              member == null,
+              "Permission denied, only user belongs to this team can access this permission");
+          break;
+        case APP:
+          Application app = applicationService.getById(paramId);
+          ApiAlertException.throwIfTrue(app == null, "Invalid operation, application is null");
+          member = memberService.findByUserName(app.getTeamId(), currentUser.getUsername());
+          ApiAlertException.throwIfTrue(
+              member == null,
+              "Permission denied, only user belongs to this team can access this permission");
+          break;
+        default:
+          throw new IllegalArgumentException(
+              String.format("Permission type %s is not supported.", permissionType));
+      }
+    }
+
+    return (RestResponse) joinPoint.proceed();
+  }
+
+  private Long getParamId(
+      ProceedingJoinPoint joinPoint, MethodSignature methodSignature, String spELString) {
+    SpelExpressionParser parser = new SpelExpressionParser();
+    Expression expression = parser.parseExpression(spELString);
+    EvaluationContext context = new StandardEvaluationContext();
+    Object[] args = joinPoint.getArgs();
+    DefaultParameterNameDiscoverer discoverer = new DefaultParameterNameDiscoverer();
+    String[] parameterNames = discoverer.getParameterNames(methodSignature.getMethod());
+    for (int i = 0; i < parameterNames.length; i++) {
+      context.setVariable(parameterNames[i], args[i]);
+    }
+    Object value = expression.getValue(context);
+
+    if (value == null || StringUtils.isBlank(value.toString())) {
+      return null;
+    }
+
+    try {
+      return Long.parseLong(value.toString());
+    } catch (NumberFormatException e) {
+      throw new ApiAlertException(
+          "Wrong use of annotation on method " + methodSignature.getName(), e);
+    }
   }
 }

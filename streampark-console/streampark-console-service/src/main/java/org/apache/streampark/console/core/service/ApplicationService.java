@@ -17,6 +17,7 @@
 
 package org.apache.streampark.console.core.service;
 
+import org.apache.streampark.common.enums.ExecutionMode;
 import org.apache.streampark.console.base.domain.RestRequest;
 import org.apache.streampark.console.base.exception.ApplicationException;
 import org.apache.streampark.console.core.entity.Application;
@@ -28,6 +29,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -71,8 +73,6 @@ public interface ApplicationService extends IService<Application> {
 
   Map<String, Serializable> dashboard(Long teamId);
 
-  void tailMvnDownloading(Long id);
-
   String upload(MultipartFile file) throws Exception;
 
   /** set the latest to Effective, it will really become the current effective */
@@ -86,11 +86,14 @@ public interface ApplicationService extends IService<Application> {
 
   boolean checkAlter(Application application);
 
-  void updateLaunch(Application application);
+  void updateRelease(Application application);
 
   List<Application> getByProjectId(Long id);
 
   List<Application> getByTeamId(Long teamId);
+
+  List<Application> getByTeamIdAndExecutionModes(
+      Long teamId, Collection<ExecutionMode> executionModes);
 
   boolean checkBuildAndUpdate(Application app);
 
@@ -99,6 +102,8 @@ public interface ApplicationService extends IService<Application> {
   boolean existsRunningJobByClusterId(Long clusterId);
 
   boolean existsJobByClusterId(Long id);
+
+  boolean existsJobByFlinkEnvId(Long id);
 
   List<String> getRecentK8sNamespace();
 

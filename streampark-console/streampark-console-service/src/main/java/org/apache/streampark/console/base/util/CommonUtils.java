@@ -451,7 +451,7 @@ public final class CommonUtils implements Serializable {
   }
 
   public static <T> T[] arrayRemoveElements(T[] array, T... elem) {
-    Utils.required(array != null);
+    Utils.notNull(array);
     List<T> arrayList = new ArrayList<>(0);
     Collections.addAll(arrayList, array);
     if (isEmpty(elem)) {
@@ -512,7 +512,7 @@ public final class CommonUtils implements Serializable {
     while (sb.length() < len) {
       sb.append(uuid());
     }
-    return sb.toString().substring(0, len);
+    return sb.substring(0, len);
   }
 
   public static Double fixedNum(Number number) {
@@ -559,7 +559,7 @@ public final class CommonUtils implements Serializable {
     if (bean != null) {
       BeanMap beanMap = BeanMap.create(bean);
       for (Object key : beanMap.keySet()) {
-        map.put(key + "", beanMap.get(key));
+        map.put(String.valueOf(key), beanMap.get(key));
       }
     }
     return map;

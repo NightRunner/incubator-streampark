@@ -18,6 +18,7 @@
 package org.apache.streampark.console.system.entity;
 
 import org.apache.streampark.common.conf.ConfigConst;
+import org.apache.streampark.console.core.enums.LoginType;
 import org.apache.streampark.console.core.enums.UserType;
 
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -42,15 +43,13 @@ public class User implements Serializable {
 
   public static final String STATUS_LOCK = "0";
 
-  public static final String DEFAULT_AVATAR = "default.jpg";
-
   public static final String SEX_MALE = "0";
 
   public static final String SEX_FEMALE = "1";
 
-  public static final String SEX_UNKNOW = "2";
+  public static final String SEX_UNKNOWN = "2";
 
-  public static final String DEFAULT_PASSWORD = "streampark666";
+  public static final Integer DEFAULT_PASSWORD_LENGTH = 8;
 
   @TableId(type = IdType.AUTO)
   private Long userId;
@@ -66,6 +65,8 @@ public class User implements Serializable {
 
   private UserType userType;
 
+  private LoginType loginType;
+
   @NotBlank(message = "{required}")
   private String status;
 
@@ -80,8 +81,6 @@ public class User implements Serializable {
 
   @Size(max = 100, message = "{noMoreThan}")
   private String description;
-
-  private String avatar;
 
   private transient String oldPassword;
 

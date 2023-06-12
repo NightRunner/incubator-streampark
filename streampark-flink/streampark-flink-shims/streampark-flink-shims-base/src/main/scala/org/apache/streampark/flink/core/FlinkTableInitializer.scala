@@ -16,18 +16,6 @@
  */
 package org.apache.streampark.flink.core
 
-import java.io.File
-
-import scala.collection.{mutable, Map}
-import scala.collection.JavaConversions._
-import scala.util.{Failure, Success, Try}
-
-import org.apache.flink.api.java.utils.ParameterTool
-import org.apache.flink.configuration.{Configuration, PipelineOptions}
-import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
-import org.apache.flink.table.api.{EnvironmentSettings, TableConfig, TableEnvironment}
-import org.apache.flink.table.api.bridge.scala.StreamTableEnvironment
-
 import org.apache.streampark.common.conf.ConfigConst._
 import org.apache.streampark.common.enums.{ApiType, PlannerType, TableMode}
 import org.apache.streampark.common.enums.ApiType.ApiType
@@ -36,11 +24,25 @@ import org.apache.streampark.common.util.{DeflaterUtils, PropertiesUtils}
 import org.apache.streampark.flink.core.EnhancerImplicit._
 import org.apache.streampark.flink.core.conf.FlinkConfiguration
 
+import org.apache.flink.api.java.utils.ParameterTool
+import org.apache.flink.configuration.{Configuration, PipelineOptions}
+import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
+import org.apache.flink.table.api.{EnvironmentSettings, TableConfig, TableEnvironment}
+import org.apache.flink.table.api.bridge.scala.StreamTableEnvironment
+
+import java.io.File
+
+import scala.collection.{mutable, Map}
+import scala.collection.JavaConversions._
+import scala.util.{Failure, Success, Try}
+
 private[flink] object FlinkTableInitializer {
 
   private[this] var flinkInitializer: FlinkTableInitializer = _
 
-  def initialize(args: Array[String], config: (TableConfig, ParameterTool) => Unit): (ParameterTool, TableEnvironment) = {
+  def initialize(
+      args: Array[String],
+      config: (TableConfig, ParameterTool) => Unit): (ParameterTool, TableEnvironment) = {
     if (flinkInitializer == null) {
       this.synchronized {
         if (flinkInitializer == null) {
@@ -69,7 +71,8 @@ private[flink] object FlinkTableInitializer {
   def initialize(
       args: Array[String],
       configStream: (StreamExecutionEnvironment, ParameterTool) => Unit,
-      configTable: (TableConfig, ParameterTool) => Unit): (ParameterTool, StreamExecutionEnvironment, StreamTableEnvironment) = {
+      configTable: (TableConfig, ParameterTool) => Unit)
+      : (ParameterTool, StreamExecutionEnvironment, StreamTableEnvironment) = {
     if (flinkInitializer == null) {
       this.synchronized {
         if (flinkInitializer == null) {
@@ -80,10 +83,14 @@ private[flink] object FlinkTableInitializer {
         }
       }
     }
-    (flinkInitializer.configuration.parameter, flinkInitializer.streamEnvironment, flinkInitializer.streamTableEnvironment)
+    (
+      flinkInitializer.configuration.parameter,
+      flinkInitializer.streamEnvironment,
+      flinkInitializer.streamTableEnvironment)
   }
 
-  def initialize(args: StreamTableEnvConfig): (ParameterTool, StreamExecutionEnvironment, StreamTableEnvironment) = {
+  def initialize(args: StreamTableEnvConfig)
+      : (ParameterTool, StreamExecutionEnvironment, StreamTableEnvironment) = {
     if (flinkInitializer == null) {
       this.synchronized {
         if (flinkInitializer == null) {
@@ -94,12 +101,16 @@ private[flink] object FlinkTableInitializer {
         }
       }
     }
-    (flinkInitializer.configuration.parameter, flinkInitializer.streamEnvironment, flinkInitializer.streamTableEnvironment)
+    (
+      flinkInitializer.configuration.parameter,
+      flinkInitializer.streamEnvironment,
+      flinkInitializer.streamTableEnvironment)
   }
 
 }
 
-private[flink] class FlinkTableInitializer(args: Array[String], apiType: ApiType) extends FlinkStreamingInitializer(args, apiType) {
+private[flink] class FlinkTableInitializer(args: Array[String], apiType: ApiType)
+  extends FlinkStreamingInitializer(args, apiType) {
 
   private[this] var localStreamTableEnv: StreamTableEnvironment = _
 
@@ -127,9 +138,7 @@ private[flink] class FlinkTableInitializer(args: Array[String], apiType: ApiType
     localTableEnv
   }
 
-  /**
-   * In case of table SQL, the parameter conf is not required, it depends on the developer.
-   */
+  /** In case of table SQL, the parameter conf is not required, it depends on the developer. */
 
   override def initParameter(): FlinkConfiguration = {
     val configuration = {
@@ -143,11 +152,12 @@ private[flink] class FlinkTableInitializer(args: Array[String], apiType: ApiType
           val configMap = parseConfig(file)
           // set sql..
           val sqlConf = mutable.Map[String, String]()
-          configMap.foreach(x => {
-            if (x._1.startsWith(KEY_SQL_PREFIX)) {
-              sqlConf += x._1.drop(KEY_SQL_PREFIX.length) -> x._2
-            }
-          })
+          configMap.foreach(
+            x => {
+              if (x._1.startsWith(KEY_SQL_PREFIX)) {
+                sqlConf += x._1.drop(KEY_SQL_PREFIX.length) -> x._2
+              }
+            })
 
           // config priority: explicitly specified priority > project profiles > system profiles
           val properConf = extractConfigByPrefix(configMap, KEY_FLINK_PROPERTY_PREFIX)
@@ -157,7 +167,8 @@ private[flink] class FlinkTableInitializer(args: Array[String], apiType: ApiType
           val tableConfig = Configuration.fromMap(tableConf)
           val envConfig = Configuration.fromMap(properConf)
 
-          val parameter = ParameterTool.fromSystemProperties()
+          val parameter = ParameterTool
+            .fromSystemProperties()
             .mergeWith(ParameterTool.fromMap(properConf))
             .mergeWith(ParameterTool.fromMap(tableConf))
             .mergeWith(ParameterTool.fromMap(appConf))
@@ -174,12 +185,14 @@ private[flink] class FlinkTableInitializer(args: Array[String], apiType: ApiType
         // for streampark-console
         Try(DeflaterUtils.unzipString(param)) match {
           case Success(value) =>
-            configuration.copy(parameter = configuration.parameter.mergeWith(ParameterTool.fromMap(Map(KEY_FLINK_SQL() -> value))))
+            configuration.copy(parameter = configuration.parameter.mergeWith(
+              ParameterTool.fromMap(Map(KEY_FLINK_SQL() -> value))))
           case Failure(_) =>
             val sqlFile = new File(param)
             Try(PropertiesUtils.fromYamlFile(sqlFile.getAbsolutePath)) match {
               case Success(value) =>
-                configuration.copy(parameter = configuration.parameter.mergeWith(ParameterTool.fromMap(value)))
+                configuration.copy(parameter =
+                  configuration.parameter.mergeWith(ParameterTool.fromMap(value)))
               case Failure(e) =>
                 new IllegalArgumentException(s"[StreamPark] init sql error.$e")
                 configuration
@@ -191,22 +204,36 @@ private[flink] class FlinkTableInitializer(args: Array[String], apiType: ApiType
   def initEnvironment(tableMode: TableMode): Unit = {
     val builder = EnvironmentSettings.newInstance()
     val parameter = configuration.parameter
-    val plannerType = Try(PlannerType.withName(parameter.get(KEY_FLINK_TABLE_PLANNER))).getOrElse(PlannerType.blink)
-
-    try {
-      plannerType match {
-        case PlannerType.blink =>
+    Try(PlannerType.withName(parameter.get(KEY_FLINK_TABLE_PLANNER)))
+      .getOrElse(PlannerType.blink) match {
+      case PlannerType.blink =>
+        val useBlinkPlanner =
+          Try(builder.getClass.getDeclaredMethod("useBlinkPlanner")).getOrElse(null)
+        if (useBlinkPlanner == null) {
+          logWarn("useBlinkPlanner deprecated")
+        } else {
+          useBlinkPlanner.setAccessible(true)
+          useBlinkPlanner.invoke(builder)
           logInfo("blinkPlanner will be use.")
-          builder.useBlinkPlanner()
-        case PlannerType.old =>
-          logInfo("oldPlanner will be use.")
-          builder.useOldPlanner()
-        case PlannerType.any =>
-          logInfo("anyPlanner will be use.")
-          builder.useAnyPlanner()
-      }
-    } catch {
-      case e: IncompatibleClassChangeError =>
+        }
+      case PlannerType.old =>
+        val useOldPlanner = Try(builder.getClass.getDeclaredMethod("useOldPlanner")).getOrElse(null)
+        if (useOldPlanner == null) {
+          logWarn("useOldPlanner deprecated")
+        } else {
+          useOldPlanner.setAccessible(true)
+          useOldPlanner.invoke(builder)
+          logInfo("useOldPlanner will be use.")
+        }
+      case PlannerType.any =>
+        val useAnyPlanner = Try(builder.getClass.getDeclaredMethod("useAnyPlanner")).getOrElse(null)
+        if (useAnyPlanner == null) {
+          logWarn("useAnyPlanner deprecated")
+        } else {
+          logInfo("useAnyPlanner will be use.")
+          useAnyPlanner.setAccessible(true)
+          useAnyPlanner.invoke(builder)
+        }
     }
 
     val mode = Try(TableMode.withName(parameter.get(KEY_FLINK_TABLE_MODE))).getOrElse(tableMode)
@@ -219,7 +246,8 @@ private[flink] class FlinkTableInitializer(args: Array[String], apiType: ApiType
         builder.inStreamingMode()
     }
 
-    val buildWith = (parameter.get(KEY_FLINK_TABLE_CATALOG), parameter.get(KEY_FLINK_TABLE_DATABASE))
+    val buildWith =
+      (parameter.get(KEY_FLINK_TABLE_CATALOG), parameter.get(KEY_FLINK_TABLE_DATABASE))
     buildWith match {
       case (x: String, y: String) if x != null && y != null =>
         logInfo(s"with built in catalog: $x")
@@ -250,8 +278,10 @@ private[flink] class FlinkTableInitializer(args: Array[String], apiType: ApiType
     val appName = parameter.getAppName()
     if (appName != null) {
       tableMode match {
-        case TableMode.batch => localTableEnv.getConfig.getConfiguration.setString(PipelineOptions.NAME, appName)
-        case TableMode.streaming => localStreamTableEnv.getConfig.getConfiguration.setString(PipelineOptions.NAME, appName)
+        case TableMode.batch =>
+          localTableEnv.getConfig.getConfiguration.setString(PipelineOptions.NAME, appName)
+        case TableMode.streaming =>
+          localStreamTableEnv.getConfig.getConfiguration.setString(PipelineOptions.NAME, appName)
       }
     }
 
@@ -259,8 +289,10 @@ private[flink] class FlinkTableInitializer(args: Array[String], apiType: ApiType
       case ApiType.java =>
         if (javaTableEnvConfFunc != null) {
           tableMode match {
-            case TableMode.batch => javaTableEnvConfFunc.configuration(localTableEnv.getConfig, parameter)
-            case TableMode.streaming => javaTableEnvConfFunc.configuration(localStreamTableEnv.getConfig, parameter)
+            case TableMode.batch =>
+              javaTableEnvConfFunc.configuration(localTableEnv.getConfig, parameter)
+            case TableMode.streaming =>
+              javaTableEnvConfFunc.configuration(localStreamTableEnv.getConfig, parameter)
           }
         }
       case ApiType.scala =>

@@ -40,7 +40,7 @@ export const getDescSchema = (): DescItem[] => {
       render: (curVal) =>
         h(
           'div',
-          { class: 'app_state' },
+          { class: 'bold-tag' },
           h(Tag, { color: curVal === 1 ? '#545454' : '#0C7EF2', class: 'mr-8px' }, () =>
             curVal === 1 ? 'Custom Code' : 'Flink SQL',
           ),
@@ -107,6 +107,12 @@ export const getConfColumns = (): BasicColumn[] => [
   { title: 'Version', dataIndex: 'version' },
   { title: 'Conf Format', dataIndex: 'format' },
   { title: 'Effective', dataIndex: 'effective' },
+  { title: 'Modify Time', dataIndex: 'createTime' },
+];
+
+export const getFlinkSqlColumns = (): BasicColumn[] => [
+  { title: 'Version', dataIndex: 'version' },
+  { title: 'Effective', dataIndex: 'effective' },
   { title: 'Candidate', dataIndex: 'candidate' },
   { title: 'Modify Time', dataIndex: 'createTime' },
 ];
@@ -125,6 +131,7 @@ export const getBackupColumns = (): BasicColumn[] => [
 ];
 
 export const getOptionLogColumns = (): BasicColumn[] => [
+  { title: 'Operation Name', dataIndex: 'optionName', width: 150 },
   { title: 'Application Id', dataIndex: 'yarnAppId' },
   { title: 'JobManager URL', dataIndex: 'jobManagerUrl' },
   { title: 'Start Status', dataIndex: 'success', width: 120 },

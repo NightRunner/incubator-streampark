@@ -35,28 +35,29 @@ export const useFlinkApplication = (openStartModal: Fn) => {
   const optionApps = {
     starting: new Map(),
     stopping: new Map(),
-    launch: new Map(),
+    release: new Map(),
+    savepointing: new Map(),
   };
 
   /* check */
-  function handleCheckLaunchApp(app: Recordable) {
+  function handleCheckReleaseApp(app: Recordable) {
     if (app['appControl']['allowBuild'] === true) {
-      handleLaunchApp(app, false);
+      handleReleaseApp(app, false);
     } else {
       createWarningModal({
         title: 'WARNING',
         content: `
-          <p class="pt-10px">${t('flink.app.launch.launchTitle')}</p>
-          <p>${t('flink.app.launch.launchDesc')}</p>
+          <p class="pt-10px">${t('flink.app.release.releaseTitle')}</p>
+          <p>${t('flink.app.release.releaseDesc')}</p>
         `,
         okType: 'danger',
-        onOk: () => handleLaunchApp(app, true),
+        onOk: () => handleReleaseApp(app, true),
       });
     }
   }
 
-  /* Launch App */
-  async function handleLaunchApp(app: Recordable, force: boolean) {
+  /* Release App */
+  async function handleReleaseApp(app: Recordable, force: boolean) {
     const { data } = await fetchBuild({
       appId: app.id,
       forceBuild: force,
@@ -64,13 +65,13 @@ export const useFlinkApplication = (openStartModal: Fn) => {
     if (!data.data) {
       let message = data.message || '';
       if (!message) {
-        message = t('flink.app.launch.launchFail') + message.replaceAll(/\[StreamPark]/g, '');
+        message = t('flink.app.release.releaseFail') + message.replaceAll(/\[StreamPark]/g, '');
       }
       Swal.fire('Failed', message, 'error');
     } else {
       Swal.fire({
         icon: 'success',
-        title: t('flink.app.launch.launching'),
+        title: t('flink.app.release.releasing'),
         showConfirmButton: false,
         timer: 2000,
       });
@@ -176,7 +177,7 @@ export const useFlinkApplication = (openStartModal: Fn) => {
       [AppStateEnum.CANCELLING]: 'cancelling',
     };
     const optionStateMap = {
-      [OptionStateEnum.LAUNCHING]: 'launching',
+      [OptionStateEnum.RELEASING]: 'releasing',
       [OptionStateEnum.CANCELLING]: 'cancelling',
       [OptionStateEnum.STARTING]: 'starting',
       [OptionStateEnum.SAVEPOINTING]: 'savePointing',
@@ -225,7 +226,7 @@ export const useFlinkApplication = (openStartModal: Fn) => {
       ],
       content: () => {
         return (
-          <Form class="!pt-30px">
+          <Form class="!pt-50px">
             <Form.Item
               label="Application Name"
               labelCol={{ lg: { span: 7 }, sm: { span: 7 } }}
@@ -245,8 +246,8 @@ export const useFlinkApplication = (openStartModal: Fn) => {
           </Form>
         );
       },
-      okText: 'Apply',
-      cancelText: 'Close',
+      okText: t('common.apply'),
+      cancelText: t('common.closeText'),
       onOk: async () => {
         //1) check empty
         if (copyAppName == null) {
@@ -300,7 +301,7 @@ export const useFlinkApplication = (openStartModal: Fn) => {
   }
 
   /* mapping */
-  function handleMapping(app) {
+  function handleMapping(app: Recordable) {
     const mappingRef = ref();
     const formValue = reactive<any>({});
     createConfirm({
@@ -348,8 +349,8 @@ export const useFlinkApplication = (openStartModal: Fn) => {
           </Form>
         );
       },
-      okText: 'Apply',
-      cancelText: 'Close',
+      okText: t('common.apply'),
+      cancelText: t('common.closeText'),
       onOk: async () => {
         try {
           await mappingRef.value.validate();
@@ -379,7 +380,7 @@ export const useFlinkApplication = (openStartModal: Fn) => {
   });
 
   return {
-    handleCheckLaunchApp,
+    handleCheckReleaseApp,
     handleAppCheckStart,
     handleCanStop,
     handleForcedStop,

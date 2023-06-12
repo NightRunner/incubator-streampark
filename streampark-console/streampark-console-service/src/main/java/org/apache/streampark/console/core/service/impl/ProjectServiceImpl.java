@@ -35,19 +35,20 @@ import org.apache.streampark.console.core.entity.Application;
 import org.apache.streampark.console.core.entity.Project;
 import org.apache.streampark.console.core.enums.BuildState;
 import org.apache.streampark.console.core.enums.GitCredential;
-import org.apache.streampark.console.core.enums.LaunchState;
+import org.apache.streampark.console.core.enums.ReleaseState;
 import org.apache.streampark.console.core.mapper.ProjectMapper;
 import org.apache.streampark.console.core.service.ApplicationService;
 import org.apache.streampark.console.core.service.ProjectService;
 import org.apache.streampark.console.core.task.FlinkRESTAPIWatcher;
 import org.apache.streampark.console.core.task.ProjectBuildTask;
 
+import org.apache.flink.configuration.MemorySize;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.flink.configuration.MemorySize;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -114,55 +115,52 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
   @Override
   @Transactional(rollbackFor = {Exception.class})
   public boolean update(Project projectParam) {
-    try {
-      Project project = getById(projectParam.getId());
-      Utils.required(project != null);
-      Utils.required(
-          project.getTeamId().equals(projectParam.getTeamId()), "TeamId cannot be changed.");
-      project.setName(projectParam.getName());
-      project.setUrl(projectParam.getUrl());
-      project.setBranches(projectParam.getBranches());
-      project.setGitCredential(projectParam.getGitCredential());
-      project.setPrvkeyPath(projectParam.getPrvkeyPath());
-      project.setUserName(projectParam.getUserName());
-      project.setPassword(projectParam.getPassword());
-      project.setPom(projectParam.getPom());
-      project.setDescription(projectParam.getDescription());
-      project.setBuildArgs(projectParam.getBuildArgs());
-      if (GitCredential.isSSH(project.getGitCredential())) {
-        project.setUserName(null);
-      } else {
-        project.setPrvkeyPath(null);
-      }
-      if (projectParam.getBuildState() != null) {
-        project.setBuildState(projectParam.getBuildState());
-        if (BuildState.of(projectParam.getBuildState()).equals(BuildState.NEED_REBUILD)) {
-          List<Application> applications = getApplications(project);
-          // Update deployment status
-          applications.forEach(
-              (app) -> {
-                log.info(
-                    "update deploy by project: {}, appName:{}",
-                    project.getName(),
-                    app.getJobName());
-                app.setLaunch(LaunchState.NEED_CHECK.get());
-                applicationService.updateLaunch(app);
-              });
-        }
-      }
-      baseMapper.updateById(project);
-      return true;
-    } catch (Exception e) {
-      log.error(e.getMessage(), e);
-      return false;
+    Project project = getById(projectParam.getId());
+    Utils.notNull(project);
+    ApiAlertException.throwIfFalse(
+        project.getTeamId().equals(projectParam.getTeamId()),
+        "TeamId can't be changed, update project failed.");
+    ApiAlertException.throwIfFalse(
+        !project.getBuildState().equals(BuildState.BUILDING.get()),
+        "The project is being built, update project failed.");
+    project.setName(projectParam.getName());
+    project.setUrl(projectParam.getUrl());
+    project.setBranches(projectParam.getBranches());
+    project.setGitCredential(projectParam.getGitCredential());
+    project.setPrvkeyPath(projectParam.getPrvkeyPath());
+    project.setUserName(projectParam.getUserName());
+    project.setPassword(projectParam.getPassword());
+    project.setPom(projectParam.getPom());
+    project.setDescription(projectParam.getDescription());
+    project.setBuildArgs(projectParam.getBuildArgs());
+    if (GitCredential.isSSH(project.getGitCredential())) {
+      project.setUserName(null);
+    } else {
+      project.setPrvkeyPath(null);
     }
+    if (projectParam.getBuildState() != null) {
+      project.setBuildState(projectParam.getBuildState());
+      if (BuildState.of(projectParam.getBuildState()).equals(BuildState.NEED_REBUILD)) {
+        List<Application> applications = getApplications(project);
+        // Update deployment status
+        applications.forEach(
+            (app) -> {
+              log.info(
+                  "update deploy by project: {}, appName:{}", project.getName(), app.getJobName());
+              app.setRelease(ReleaseState.NEED_CHECK.get());
+              applicationService.updateRelease(app);
+            });
+      }
+    }
+    baseMapper.updateById(project);
+    return true;
   }
 
   @Override
   @Transactional(rollbackFor = {Exception.class})
   public boolean delete(Long id) {
     Project project = getById(id);
-    Utils.required(project != null);
+    Utils.notNull(project);
     LambdaQueryWrapper<Application> queryWrapper =
         new LambdaQueryWrapper<Application>().eq(Application::getProjectId, id);
     long count = applicationService.count(queryWrapper);
@@ -219,9 +217,9 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
                         "update deploy by project: {}, appName:{}",
                         project.getName(),
                         app.getJobName());
-                    app.setLaunch(LaunchState.NEED_LAUNCH.get());
+                    app.setRelease(ReleaseState.NEED_RELEASE.get());
                     app.setBuild(true);
-                    this.applicationService.updateLaunch(app);
+                    this.applicationService.updateRelease(app);
                   });
               flinkRESTAPIWatcher.init();
             });
@@ -234,7 +232,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
   @Override
   public List<String> modules(Long id) {
     Project project = getById(id);
-    Utils.required(project != null);
+    Utils.notNull(project);
     BuildState buildState = BuildState.of(project.getBuildState());
     if (BuildState.SUCCESSFUL.equals(buildState)) {
       File appHome = project.getDistHome();
@@ -258,9 +256,8 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
   @Override
   public List<String> jars(Project project) {
     List<String> list = new ArrayList<>(0);
-    if (project.getModule() == null) {
-      throw new ApiAlertException("project module can not be null, please check");
-    }
+    ApiAlertException.throwIfNull(
+        project.getModule(), "Project module can't be null, please check.");
     File apps = new File(project.getDistHome(), project.getModule());
     for (File file : Objects.requireNonNull(apps.listFiles())) {
       if (file.getName().endsWith(".jar")) {
@@ -309,7 +306,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
       }
       List<Map<String, Object>> list = new ArrayList<>();
       File[] files = unzipFile.listFiles(x -> "conf".equals(x.getName()));
-      Utils.required(files != null);
+      Utils.notNull(files);
       for (File item : files) {
         eachFile(item, list, true);
       }

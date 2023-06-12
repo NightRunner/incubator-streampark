@@ -78,21 +78,6 @@ public interface UserService extends IService<User> {
   void deleteUser(Long userId) throws Exception;
 
   /**
-   * update user
-   *
-   * @param user user
-   */
-  void updateProfile(User user) throws Exception;
-
-  /**
-   * update user avatar
-   *
-   * @param username name
-   * @param avatar avatar
-   */
-  void updateAvatar(String username, String avatar) throws Exception;
-
-  /**
    * update password
    *
    * @param user
@@ -100,12 +85,14 @@ public interface UserService extends IService<User> {
    */
   void updatePassword(User user) throws Exception;
 
+  void updateSaltPassword(User user) throws Exception;
+
   /**
    * reset password
    *
-   * @param usernames user list
+   * @param username user name
    */
-  void resetPassword(String[] usernames) throws Exception;
+  String resetPassword(String username) throws Exception;
 
   /**
    * Get the permissions of current userId.

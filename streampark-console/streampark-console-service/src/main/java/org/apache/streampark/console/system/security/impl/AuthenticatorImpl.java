@@ -17,14 +17,16 @@
 
 package org.apache.streampark.console.system.security.impl;
 
+import org.apache.streampark.console.base.exception.ApiAlertException;
 import org.apache.streampark.console.base.util.ShaHashUtils;
+import org.apache.streampark.console.core.enums.LoginType;
 import org.apache.streampark.console.core.enums.UserType;
 import org.apache.streampark.console.system.entity.User;
 import org.apache.streampark.console.system.security.Authenticator;
-import org.apache.streampark.console.system.security.impl.ldap.LdapService;
 import org.apache.streampark.console.system.service.UserService;
 
 import org.apache.commons.lang3.StringUtils;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -36,10 +38,25 @@ public class AuthenticatorImpl implements Authenticator {
   @Autowired private LdapService ldapService;
 
   @Override
-  public User authenticate(String username, String password) {
+  public User authenticate(String username, String password, String loginType) throws Exception {
+    LoginType loginTypeEnum = LoginType.of(loginType);
+    if (loginTypeEnum == null) {
+      throw new ApiAlertException(
+          String.format("the login type [%s] is not supported.", loginType));
+    }
+
+    if (loginTypeEnum.equals(LoginType.PASSWORD)) {
+      return passwordAuthenticate(username, password);
+    } else {
+      return ldapAuthenticate(username, password);
+    }
+  }
+
+  private User passwordAuthenticate(String username, String password) {
     User user = usersService.findByName(username);
-    if (user == null) {
-      return null;
+    if (user == null || user.getLoginType() != LoginType.PASSWORD) {
+      throw new ApiAlertException(
+          String.format("user [%s] does not exist or can not login with PASSWORD", username));
     }
     String salt = user.getSalt();
     password = ShaHashUtils.encrypt(salt, password);
@@ -49,24 +66,42 @@ public class AuthenticatorImpl implements Authenticator {
     return user;
   }
 
-  @Override
-  public User ldapAuthenticate(String username, String password) throws Exception {
+  private User ldapAuthenticate(String username, String password) throws Exception {
     String ldapEmail = ldapService.ldapLogin(username, password);
     if (ldapEmail == null) {
       return null;
     }
     // check if user exist
     User user = usersService.findByName(username);
-    if (user != null || !ldapService.createIfUserNotExists()) {
+
+    if (user != null) {
+      if (user.getLoginType() != LoginType.LDAP) {
+        throw new ApiAlertException(
+            String.format("user [%s] can only sign in with %s", username, user.getLoginType()));
+      }
+      String saltPassword = ShaHashUtils.encrypt(user.getSalt(), password);
+
+      // ldap password changed, we should update user password
+      if (!StringUtils.equals(saltPassword, user.getPassword())) {
+
+        // encrypt password again
+        String salt = ShaHashUtils.getRandomSalt();
+        saltPassword = ShaHashUtils.encrypt(salt, password);
+        user.setSalt(salt);
+        user.setPassword(saltPassword);
+        usersService.updateSaltPassword(user);
+      }
       return user;
     }
+
     User newUser = new User();
     newUser.setCreateTime(new Date());
     newUser.setUsername(username);
     newUser.setNickName(username);
     newUser.setUserType(UserType.USER);
+    newUser.setLoginType(LoginType.LDAP);
     newUser.setStatus(User.STATUS_VALID);
-    newUser.setSex(User.SEX_UNKNOW);
+    newUser.setSex(User.SEX_UNKNOWN);
     newUser.setPassword(password);
     usersService.createUser(newUser);
     return newUser;

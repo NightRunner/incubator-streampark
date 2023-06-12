@@ -23,8 +23,9 @@ import org.apache.streampark.flink.connector.doris.bean.LoadStatusFailedExceptio
 import org.apache.streampark.flink.connector.doris.bean.RespContent;
 import org.apache.streampark.flink.connector.doris.util.DorisDelimiterParser;
 
+import org.apache.streampark.shaded.com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.commons.codec.binary.Base64;
-import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -35,6 +36,7 @@ import org.apache.http.impl.client.DefaultRedirectStrategy;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -203,7 +205,7 @@ public class DorisStreamLoader implements Serializable {
       final Properties properties = dorisConfig.loadProperties();
       properties.forEach((k, v) -> put.setHeader(k.toString(), v.toString()));
       if (properties.containsKey("columns")) {
-        put.setHeader("timeout", dorisConfig.timeout() + "");
+        put.setHeader("timeout", String.valueOf(dorisConfig.timeout()));
       }
       put.setHeader(HttpHeaders.EXPECT, "100-continue");
       put.setHeader(

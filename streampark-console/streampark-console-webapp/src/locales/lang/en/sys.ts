@@ -106,7 +106,7 @@ export default {
     otherSignIn: 'Sign in with',
 
     ldapTip: 'Sign in with LDAP',
-    passwordTip: 'Sign in with LDAP',
+    passwordTip: 'Sign in with password',
 
     // notify
     loginSuccessTitle: 'Login successful',
@@ -124,6 +124,7 @@ export default {
     diffPwd: 'The two passwords are inconsistent',
     userName: 'Username',
     password: 'Password',
+    selectTeam: 'Please select a team',
     oldPassword: 'Old password',
     newPassword: 'New password',
     confirmPassword: 'Confirm password',

@@ -23,6 +23,7 @@
 </script>
 
 <script setup lang="ts" name="StopApplicationModal">
+  import { InputNumber } from 'ant-design-vue';
   import { BasicForm, useForm } from '/@/components/Form';
   import { SvgIcon } from '/@/components/Icon';
   import { BasicModal, useModalInner } from '/@/components/Modal';
@@ -59,7 +60,7 @@
       },
       {
         field: 'customSavepoint',
-        label: 'Custom SavePoint',
+        label: 'Custom Savepoint',
         component: 'Input',
         componentProps: {
           placeholder: 'Entry the custom savepoint path',
@@ -90,12 +91,13 @@
   /* submit */
   async function handleSubmit() {
     try {
-      const { stopSavePointed, drain, customSavepoint } = (await validate()) as Recordable;
+      const { stopSavePointed, customSavepoint, drain } =
+        (await validate()) as Recordable;
       const stopReq = {
         id: app.id,
         savePointed: stopSavePointed,
-        drain: drain,
         savePoint: customSavepoint,
+        drain: drain,
       };
 
       if (stopSavePointed) {
@@ -104,7 +106,7 @@
             savePoint: customSavepoint,
           });
           if (data.data === false) {
-            createErrorSwal('custom savePoint path is invalid, ' + data.message);
+            createErrorSwal('custom savepoint path is invalid, ' + data.message);
           } else {
             handleStopAction(stopReq);
           }
@@ -151,9 +153,8 @@
   >
     <template #title>
       <SvgIcon name="shutdown" style="color: red" />
-
       {{ t('flink.app.view.stop') }}
     </template>
-    <BasicForm @register="registerForm" class="!pt-20px" />
+    <BasicForm @register="registerForm" class="!pt-30px" />
   </BasicModal>
 </template>

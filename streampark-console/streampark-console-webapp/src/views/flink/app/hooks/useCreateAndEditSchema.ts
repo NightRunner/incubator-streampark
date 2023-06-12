@@ -16,7 +16,7 @@
  */
 import { FormSchema } from '/@/components/Table';
 import { computed, ref, unref, h, Ref, onMounted, reactive } from 'vue';
-import { k8sRestExposedType, resolveOrder } from '../data';
+import { executionModes, k8sRestExposedType, resolveOrder } from '../data';
 import optionData from '../data/option';
 import {
   getAlertSvgIcon,
@@ -26,6 +26,7 @@ import {
   renderIsSetConfig,
   renderOptionsItems,
   renderTotalMemory,
+  renderYarnQueue,
 } from './useFlinkRender';
 
 import { fetchCheckName } from '/@/api/flink/app/app';
@@ -51,6 +52,7 @@ import { FlinkCluster } from '/@/api/flink/setting/types/flinkCluster.type';
 import { ClusterStateEnum, ExecModeEnum, JobTypeEnum } from '/@/enums/flinkEnum';
 import { isK8sExecMode } from '../utils';
 import { useI18n } from '/@/hooks/web/useI18n';
+import { fetchCheckHadoop } from '/@/api/flink/setting';
 const { t } = useI18n();
 export interface HistoryRecord {
   k8sNamespace: Array<string>;
@@ -331,7 +333,7 @@ export const useCreateAndEditSchema = (
 
   const getFlinkFormOtherSchemas = computed((): FormSchema[] => {
     const commonInputNum = {
-      min: 1,
+      min: 0,
       step: 1,
       class: '!w-full',
     };
@@ -466,8 +468,10 @@ export const useCreateAndEditSchema = (
         field: 'yarnQueue',
         label: t('flink.app.yarnQueue'),
         component: 'Input',
-        componentProps: { placeholder: t('flink.app.addAppTips.yarnQueuePlaceholder') },
-        ifShow: ({ values }) => values.executionMode == ExecModeEnum.YARN_APPLICATION,
+        ifShow: ({ values }) =>
+          values.executionMode == ExecModeEnum.YARN_APPLICATION ||
+          values.executionMode == ExecModeEnum.YARN_PER_JOB,
+        render: (renderCallbackParams) => renderYarnQueue(renderCallbackParams),
       },
       {
         field: 'podTemplate',
@@ -533,7 +537,48 @@ export const useCreateAndEditSchema = (
       },
     ];
   });
-
+  const getExecutionModeSchema = computed((): FormSchema[] => {
+    return [
+      {
+        field: 'executionMode',
+        label: t('flink.app.executionMode'),
+        component: 'Select',
+        itemProps: {
+          autoLink: false, //Resolve multiple trigger validators with null value ·
+        },
+        componentProps: {
+          placeholder: t('flink.app.addAppTips.executionModePlaceholder'),
+          options: executionModes,
+        },
+        rules: [
+          {
+            required: true,
+            validator: async (_rule, value) => {
+              if (value === null || value === undefined || value === '') {
+                return Promise.reject(t('flink.app.addAppTips.executionModeIsRequiredMessage'));
+              } else {
+                if (
+                  [
+                    ExecModeEnum.YARN_PER_JOB,
+                    ExecModeEnum.YARN_SESSION,
+                    ExecModeEnum.YARN_APPLICATION,
+                  ].includes(value)
+                ) {
+                  const res = await fetchCheckHadoop();
+                  if (res) {
+                    return Promise.resolve();
+                  } else {
+                    return Promise.reject(t('flink.app.addAppTips.hadoopEnvInitMessage'));
+                  }
+                }
+                return Promise.resolve();
+              }
+            },
+          },
+        ],
+      },
+    ];
+  });
   onMounted(async () => {
     /* Get project data */
     fetchSelect({}).then((res) => {
@@ -584,6 +629,7 @@ export const useCreateAndEditSchema = (
     getFlinkClusterSchemas,
     getFlinkFormOtherSchemas,
     getFlinkTypeSchema,
+    getExecutionModeSchema,
     openConfDrawer,
   };
 };

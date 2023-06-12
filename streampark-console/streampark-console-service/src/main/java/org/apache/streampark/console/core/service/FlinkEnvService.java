@@ -31,7 +31,7 @@ public interface FlinkEnvService extends IService<FlinkEnv> {
    * @param version
    * @return
    */
-  boolean exists(FlinkEnv version);
+  Integer check(FlinkEnv version);
 
   /**
    * create new
@@ -40,6 +40,13 @@ public interface FlinkEnvService extends IService<FlinkEnv> {
    * @throws IOException
    */
   boolean create(FlinkEnv version) throws Exception;
+
+  /**
+   * delete flink env
+   *
+   * @param id
+   */
+  void delete(Long id);
 
   /**
    * update
@@ -84,4 +91,6 @@ public interface FlinkEnvService extends IService<FlinkEnv> {
    * @param id
    */
   void syncConf(Long id) throws IOException;
+
+  void validity(Long id);
 }

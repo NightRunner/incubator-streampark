@@ -18,9 +18,8 @@
 package org.apache.streampark.console.core.service.impl;
 
 import org.apache.streampark.common.fs.FsOperator;
-import org.apache.streampark.common.util.ThreadUtils;
-import org.apache.streampark.common.util.Utils;
 import org.apache.streampark.console.base.domain.RestRequest;
+import org.apache.streampark.console.base.exception.ApiAlertException;
 import org.apache.streampark.console.base.exception.InternalException;
 import org.apache.streampark.console.base.mybatis.pager.MybatisPager;
 import org.apache.streampark.console.core.entity.Application;
@@ -28,7 +27,7 @@ import org.apache.streampark.console.core.entity.ApplicationBackUp;
 import org.apache.streampark.console.core.entity.ApplicationConfig;
 import org.apache.streampark.console.core.entity.FlinkSql;
 import org.apache.streampark.console.core.enums.EffectiveType;
-import org.apache.streampark.console.core.enums.LaunchState;
+import org.apache.streampark.console.core.enums.ReleaseState;
 import org.apache.streampark.console.core.mapper.ApplicationBackUpMapper;
 import org.apache.streampark.console.core.service.ApplicationBackUpService;
 import org.apache.streampark.console.core.service.ApplicationConfigService;
@@ -47,11 +46,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
 @Slf4j
 @Service
 @Transactional(propagation = Propagation.SUPPORTS, readOnly = true, rollbackFor = Exception.class)
@@ -66,16 +60,6 @@ public class ApplicationBackUpServiceImpl
   @Autowired private EffectiveService effectiveService;
 
   @Autowired private FlinkSqlService flinkSqlService;
-
-  private final ExecutorService executorService =
-      new ThreadPoolExecutor(
-          Runtime.getRuntime().availableProcessors() * 5,
-          Runtime.getRuntime().availableProcessors() * 10,
-          60L,
-          TimeUnit.SECONDS,
-          new LinkedBlockingQueue<>(1024),
-          ThreadUtils.threadFactory("streampark-rollback-executor"),
-          new ThreadPoolExecutor.AbortPolicy());
 
   @Override
   public IPage<ApplicationBackUp> page(ApplicationBackUp backUp, RestRequest request) {
@@ -116,7 +100,7 @@ public class ApplicationBackUpServiceImpl
 
     // if running, set Latest
     if (application.isRunning()) {
-      // rollback to buckup config
+      // rollback to back up config
       configService.setLatestOrEffective(true, backParam.getId(), backParam.getAppId());
     } else {
       effectiveService.saveOrUpdate(backParam.getAppId(), EffectiveType.CONFIG, backParam.getId());
@@ -131,23 +115,15 @@ public class ApplicationBackUpServiceImpl
     // restore)
     fsOperator.delete(application.getAppHome());
 
-    try {
-      // copy backup files to a valid dir
-      fsOperator.copyDir(backParam.getPath(), application.getAppHome());
-    } catch (Exception e) {
-      throw e;
-    }
+    // copy backup files to a valid dir
+    fsOperator.copyDir(backParam.getPath(), application.getAppHome());
 
     // update restart status
-    try {
-      applicationService.update(
-          new UpdateWrapper<Application>()
-              .lambda()
-              .eq(Application::getId, application.getId())
-              .set(Application::getLaunch, LaunchState.NEED_RESTART.get()));
-    } catch (Exception e) {
-      throw e;
-    }
+    applicationService.update(
+        new UpdateWrapper<Application>()
+            .lambda()
+            .eq(Application::getId, application.getId())
+            .set(Application::getRelease, ReleaseState.NEED_RESTART.get()));
   }
 
   @Override
@@ -190,7 +166,8 @@ public class ApplicationBackUpServiceImpl
   @Override
   public void rollbackFlinkSql(Application application, FlinkSql sql) {
     ApplicationBackUp backUp = getFlinkSqlBackup(application.getId(), sql.getId());
-    Utils.required(backUp != null);
+    ApiAlertException.throwIfNull(
+        backUp, "Application backup can't be null. Rollback flink sql failed.");
     // rollback config and sql
     effectiveService.saveOrUpdate(backUp.getAppId(), EffectiveType.CONFIG, backUp.getId());
     effectiveService.saveOrUpdate(backUp.getAppId(), EffectiveType.FLINKSQL, backUp.getSqlId());

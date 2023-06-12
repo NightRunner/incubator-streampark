@@ -26,21 +26,24 @@ import org.apache.streampark.common.fs.FsOperator;
 import org.apache.streampark.common.util.FileUtils;
 import org.apache.streampark.common.util.ThreadUtils;
 import org.apache.streampark.common.util.Utils;
+import org.apache.streampark.console.base.exception.ApiAlertException;
 import org.apache.streampark.console.base.util.WebUtils;
 import org.apache.streampark.console.core.entity.AppBuildPipeline;
 import org.apache.streampark.console.core.entity.Application;
 import org.apache.streampark.console.core.entity.ApplicationConfig;
+import org.apache.streampark.console.core.entity.ApplicationLog;
 import org.apache.streampark.console.core.entity.FlinkEnv;
 import org.apache.streampark.console.core.entity.FlinkSql;
 import org.apache.streampark.console.core.entity.Message;
 import org.apache.streampark.console.core.enums.CandidateType;
-import org.apache.streampark.console.core.enums.LaunchState;
 import org.apache.streampark.console.core.enums.NoticeType;
 import org.apache.streampark.console.core.enums.OptionState;
+import org.apache.streampark.console.core.enums.ReleaseState;
 import org.apache.streampark.console.core.mapper.ApplicationBuildPipelineMapper;
 import org.apache.streampark.console.core.service.AppBuildPipeService;
 import org.apache.streampark.console.core.service.ApplicationBackUpService;
 import org.apache.streampark.console.core.service.ApplicationConfigService;
+import org.apache.streampark.console.core.service.ApplicationLogService;
 import org.apache.streampark.console.core.service.ApplicationService;
 import org.apache.streampark.console.core.service.CommonService;
 import org.apache.streampark.console.core.service.FlinkEnvService;
@@ -69,12 +72,13 @@ import org.apache.streampark.flink.packer.pipeline.impl.FlinkK8sSessionBuildPipe
 import org.apache.streampark.flink.packer.pipeline.impl.FlinkRemoteBuildPipeline;
 import org.apache.streampark.flink.packer.pipeline.impl.FlinkYarnApplicationBuildPipeline;
 
+import org.apache.commons.collections.CollectionUtils;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -114,6 +118,8 @@ public class AppBuildPipeServiceImpl
 
   @Autowired private ApplicationService applicationService;
 
+  @Autowired private ApplicationLogService applicationLogService;
+
   @Autowired private FlinkRESTAPIWatcher flinkRESTAPIWatcher;
 
   @Autowired private ApplicationConfigService applicationConfigService;
@@ -138,14 +144,13 @@ public class AppBuildPipeServiceImpl
       Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.DAYS).build();
 
   @Override
-  public boolean buildApplication(@Nonnull Application app) {
-
+  public boolean buildApplication(@Nonnull Application app, ApplicationLog applicationLog) {
     // 1) flink sql setDependency
     FlinkSql newFlinkSql = flinkSqlService.getCandidate(app.getId(), CandidateType.NEW);
     FlinkSql effectiveFlinkSql = flinkSqlService.getEffective(app.getId(), false);
     if (app.isFlinkSqlJob()) {
       FlinkSql flinkSql = newFlinkSql == null ? effectiveFlinkSql : newFlinkSql;
-      Utils.required(flinkSql != null);
+      Utils.notNull(flinkSql);
       app.setDependency(flinkSql.getDependency());
     }
 
@@ -164,8 +169,8 @@ public class AppBuildPipeServiceImpl
                 AppBuildPipeline.fromPipeSnapshot(snapshot).setAppId(app.getId());
             saveEntity(buildPipeline);
 
-            app.setLaunch(LaunchState.LAUNCHING.get());
-            applicationService.updateLaunch(app);
+            app.setRelease(ReleaseState.RELEASING.get());
+            applicationService.updateRelease(app);
 
             if (flinkRESTAPIWatcher.isWatchingApp(app.getId())) {
               flinkRESTAPIWatcher.init();
@@ -206,13 +211,18 @@ public class AppBuildPipeServiceImpl
               }
             } else {
               if (!app.getDependencyObject().getJar().isEmpty()) {
+                String localUploads = Workspace.local().APP_UPLOADS();
                 // copy jar to local upload dir
                 for (String jar : app.getDependencyObject().getJar()) {
                   File localJar = new File(WebUtils.getAppTempDir(), jar);
-                  Utils.required(localJar.exists());
-                  String localUploads = Workspace.local().APP_UPLOADS();
-                  String uploadJar = localUploads.concat("/").concat(jar);
-                  checkOrElseUploadJar(FsOperator.lfs(), localJar, uploadJar, localUploads);
+                  File uploadJar = new File(localUploads, jar);
+                  if (!localJar.exists() && !uploadJar.exists()) {
+                    throw new ApiAlertException("Missing file: " + jar + ", please upload again");
+                  }
+                  if (localJar.exists()) {
+                    checkOrElseUploadJar(
+                        FsOperator.lfs(), localJar, uploadJar.getAbsolutePath(), localUploads);
+                  }
                 }
               }
             }
@@ -235,10 +245,10 @@ public class AppBuildPipeServiceImpl
             if (result.pass()) {
               // running job ...
               if (app.isRunning()) {
-                app.setLaunch(LaunchState.NEED_RESTART.get());
+                app.setRelease(ReleaseState.NEED_RESTART.get());
               } else {
                 app.setOptionState(OptionState.NONE.getValue());
-                app.setLaunch(LaunchState.DONE.get());
+                app.setRelease(ReleaseState.DONE.get());
                 // If the current task is not running, or the task has just been added, directly set
                 // the candidate version to the official version
                 if (app.isFlinkSqlJob()) {
@@ -261,7 +271,7 @@ public class AppBuildPipeServiceImpl
                   backUpService.backup(app, null);
                 }
               }
-
+              applicationLog.setSuccess(true);
               app.setBuild(false);
 
             } else {
@@ -269,15 +279,18 @@ public class AppBuildPipeServiceImpl
                   new Message(
                       commonService.getUserId(),
                       app.getId(),
-                      app.getJobName().concat(" launch failed"),
+                      app.getJobName().concat(" release failed"),
                       Utils.stringifyException(snapshot.error().exception()),
                       NoticeType.EXCEPTION);
               messageService.push(message);
-              app.setLaunch(LaunchState.FAILED.get());
+              app.setRelease(ReleaseState.FAILED.get());
               app.setOptionState(OptionState.NONE.getValue());
               app.setBuild(true);
+              applicationLog.setException(Utils.stringifyException(snapshot.error().exception()));
+              applicationLog.setSuccess(false);
             }
-            applicationService.updateLaunch(app);
+            applicationService.updateRelease(app);
+            applicationLogService.save(applicationLog);
             if (flinkRESTAPIWatcher.isWatchingApp(app.getId())) {
               flinkRESTAPIWatcher.init();
             }
@@ -305,14 +318,14 @@ public class AppBuildPipeServiceImpl
                 }
               });
     }
-    // save pipeline instance snapshot to db before launch it.
+    // save pipeline instance snapshot to db before release it.
     AppBuildPipeline buildPipeline =
         AppBuildPipeline.initFromPipeline(pipeline).setAppId(app.getId());
     boolean saved = saveEntity(buildPipeline);
     DOCKER_PULL_PG_SNAPSHOTS.invalidate(app.getId());
     DOCKER_BUILD_PG_SNAPSHOTS.invalidate(app.getId());
     DOCKER_PUSH_PG_SNAPSHOTS.invalidate(app.getId());
-    // async launch pipeline
+    // async release pipeline
     executorService.submit((Runnable) pipeline::launch);
     return saved;
   }
@@ -327,7 +340,7 @@ public class AppBuildPipeServiceImpl
       case YARN_APPLICATION:
         String yarnProvidedPath = app.getAppLib();
         String localWorkspace = app.getLocalAppHome().concat("/lib");
-        if (app.getDevelopmentMode().equals(DevelopmentMode.CUSTOMCODE)
+        if (app.getDevelopmentMode().equals(DevelopmentMode.CUSTOM_CODE)
             && app.getApplicationType().equals(ApplicationType.APACHE_FLINK)) {
           yarnProvidedPath = app.getAppHome();
           localWorkspace = app.getLocalAppHome();
@@ -406,7 +419,7 @@ public class AppBuildPipeServiceImpl
   /** copy from {@link ApplicationServiceImpl#start(Application, boolean)} */
   private String retrieveFlinkUserJar(FlinkEnv flinkEnv, Application app) {
     switch (app.getDevelopmentMode()) {
-      case CUSTOMCODE:
+      case CUSTOM_CODE:
         switch (app.getApplicationType()) {
           case STREAMPARK_FLINK:
             return String.format("%s/%s", app.getAppLib(), app.getModule().concat(".jar"));
@@ -417,7 +430,7 @@ public class AppBuildPipeServiceImpl
                 "[StreamPark] unsupported ApplicationType of custom code: "
                     + app.getApplicationType());
         }
-      case FLINKSQL:
+      case FLINK_SQL:
         String sqlDistJar = commonService.getSqlClientJar(flinkEnv);
         if (app.getExecutionModeEnum() == ExecutionMode.YARN_APPLICATION) {
           String clientPath = Workspace.remote().APP_CLIENT();

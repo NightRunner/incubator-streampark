@@ -14,12 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.streampark.flink.kubernetes
 
-import java.io.File
-
-import scala.collection.JavaConversions._
-import scala.util.{Failure, Success, Try}
+import org.apache.streampark.flink.kubernetes.helper.KubernetesDeploymentHelper
+import org.apache.streampark.flink.kubernetes.watcher.{Checkpoint, FlinkRestJmConfigItem, FlinkRestOverview, JobDetails}
 
 import com.google.common.base.Charsets
 import com.google.common.io.Files
@@ -32,8 +31,10 @@ import org.json4s.JsonAST.JArray
 import org.json4s.jackson.JsonMethods.parse
 import org.junit.jupiter.api.Test
 
-import org.apache.streampark.flink.kubernetes.helper.KubernetesDeploymentHelper
-import org.apache.streampark.flink.kubernetes.watcher.{Checkpoint, FlinkRestJmConfigItem, FlinkRestOverview, JobDetails}
+import java.io.File
+
+import scala.collection.JavaConversions._
+import scala.util.{Failure, Success, Try}
 
 // scalastyle:off println
 class FlinkRestJsonTest {
@@ -126,9 +127,12 @@ class FlinkRestJsonTest {
         |
         |""".stripMargin
 
-    FlinkRestJmConfigItem.as(json).foreach(x => {
-      println(s"${x.key}: ${x.value}")
-    })
+    FlinkRestJmConfigItem
+      .as(json)
+      .foreach(
+        x => {
+          println(s"${x.key}: ${x.value}")
+        })
 
   }
 
@@ -259,42 +263,6 @@ class FlinkRestJsonTest {
     println(checkpoint)
   }
 
-  @Test def testIngress(): Unit = {
-    val json =
-      """
-        |[
-        |    {
-        |        "addresses":[
-        |            "192.168.0.1",
-        |            "192.168.0.2",
-        |            "192.168.0.3"
-        |        ],
-        |        "port":80,
-        |        "protocol":"HTTP",
-        |        "serviceName":"native-flink:statebackend12788-rest",
-        |        "ingressName":"native-flink:statebackend12788",
-        |        "hostname":"streampark.com",
-        |        "path":"/native-flink/statebackend12788/",
-        |        "allNodes":false
-        |    },
-        |    {
-        |        "addresses":[
-        |        ],
-        |        "port":80,
-        |        "protocol":"HTTP",
-        |        "serviceName":"native-flink:statebackend12788-rest",
-        |        "ingressName":"native-flink:statebackend12788",
-        |        "hostname":"streampark.com",
-        |        "path":"/native-flink/statebackend12788(/|$)(.*)",
-        |        "allNodes":false
-        |    }
-        |]
-        |""".stripMargin
-
-    val ingressMeta = IngressMeta.as(json)
-    println(ingressMeta.get)
-  }
-
   @Test def testHistoryArchives(): Unit = {
 
     @transient
@@ -306,36 +274,38 @@ class FlinkRestJsonTest {
       val archivedJson = FsJobArchivist.getArchivedJsons(archivePath)
       var state: String = "FAILED"
       if (CollectionUtils.isNotEmpty(archivedJson)) {
-        archivedJson.foreach { a =>
-          if (a.getPath == s"/jobs/$jobId/exceptions") {
-            Try(parse(a.getJson)) match {
-              case Success(ok) =>
-                val log = (ok \ "root-exception").extractOpt[String].orNull
-                if (log != null) {
-                  val path = KubernetesDeploymentHelper.getJobErrorLog(jobId)
-                  val file = new File(path)
-                  Files.asCharSink(file, Charsets.UTF_8).write(log)
-                  println(" error path: " + path)
-                }
-              case _ =>
+        archivedJson.foreach {
+          a =>
+            if (a.getPath == s"/jobs/$jobId/exceptions") {
+              Try(parse(a.getJson)) match {
+                case Success(ok) =>
+                  val log = (ok \ "root-exception").extractOpt[String].orNull
+                  if (log != null) {
+                    val path = KubernetesDeploymentHelper.getJobErrorLog(jobId)
+                    val file = new File(path)
+                    Files.asCharSink(file, Charsets.UTF_8).write(log)
+                    println(" error path: " + path)
+                  }
+                case _ =>
+              }
+            } else if (a.getPath == "/jobs/overview") {
+              Try(parse(a.getJson)) match {
+                case Success(ok) =>
+                  ok \ "jobs" match {
+                    case JNothing | JNull =>
+                    case JArray(arr) =>
+                      arr.foreach(
+                        x => {
+                          val jid = (x \ "jid").extractOpt[String].orNull
+                          if (jid == jobId) {
+                            state = (x \ "state").extractOpt[String].orNull
+                          }
+                        })
+                    case _ =>
+                  }
+                case Failure(_) =>
+              }
             }
-          } else if (a.getPath == "/jobs/overview") {
-            Try(parse(a.getJson)) match {
-              case Success(ok) =>
-                ok \ "jobs" match {
-                  case JNothing | JNull =>
-                  case JArray(arr) =>
-                    arr.foreach(x => {
-                      val jid = (x \ "jid").extractOpt[String].orNull
-                      if (jid == jobId) {
-                        state = (x \ "state").extractOpt[String].orNull
-                      }
-                    })
-                  case _ =>
-                }
-              case Failure(_) =>
-            }
-          }
         }
       }
       state

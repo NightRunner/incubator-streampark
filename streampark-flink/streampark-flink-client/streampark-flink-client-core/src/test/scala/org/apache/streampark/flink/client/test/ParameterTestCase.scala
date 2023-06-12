@@ -16,20 +16,16 @@
  */
 package org.apache.streampark.flink.client.test
 
-import scala.collection.mutable.ArrayBuffer
-
 import org.apache.commons.lang3.StringUtils
 import org.apache.flink.api.java.utils.ParameterTool
 import org.junit.jupiter.api.{Assertions, Test}
 
-import org.apache.streampark.flink.client.FlinkClient
+import scala.collection.mutable.ArrayBuffer
 
 class ParameterTestCase {
 
   @Test def readArgs(): Unit = {
-    val arg = Array(
-      "--flink.deployment.option.parallelism",
-      "10")
+    val arg = Array("--flink.deployment.option.parallelism", "10")
     val args = Array(
       "--flink.home",
       "hdfs://nameservice1/streampark/flink/flink-1.11.1",
@@ -39,7 +35,9 @@ class ParameterTestCase {
       "5")
     val param = ParameterTool.fromArgs(arg).mergeWith(ParameterTool.fromArgs(args))
 
-    Assertions.assertEquals("hdfs://nameservice1/streampark/flink/flink-1.11.1", param.get("flink.home"))
+    Assertions.assertEquals(
+      "hdfs://nameservice1/streampark/flink/flink-1.11.1",
+      param.get("flink.home"))
     Assertions.assertEquals("testApp123", param.get("app.name"))
     Assertions.assertEquals("5", param.get("flink.deployment.option.parallelism"))
   }
@@ -106,29 +104,6 @@ class ParameterTestCase {
     Assertions.assertEquals("insert into table_a select * from table_b", programArgs(3))
     Assertions.assertEquals("d", programArgs(5))
     Assertions.assertEquals("yyy", programArgs(7))
-  }
-
-  @Test def testDynamicProperties(): Unit = {
-    val dynamicProperties =
-      """
-        |-Denv.java.opts1="-Dfile.encoding=UTF-8"
-        |-Denv.java.opts2 = "-Dfile.enc\"oding=UTF-8"
-        |-Denv.java.opts3 = " -Dfile.encoding=UTF-8"
-        |-Dyarn.application.id=123
-        |-Dyarn.application.name="streampark job"
-        |-Dyarn.application.queue=flink
-        |-Ddiy.param.name=apache streampark
-        |
-        |""".stripMargin
-
-    val map = FlinkClient.extractDynamicProperties(dynamicProperties)
-    Assertions.assertEquals(map("env.java.opts1"), "-Dfile.encoding=UTF-8")
-    Assertions.assertEquals(map("env.java.opts2"), "-Dfile.enc\\\"oding=UTF-8")
-    Assertions.assertEquals(map("env.java.opts3"), " -Dfile.encoding=UTF-8")
-    Assertions.assertEquals(map("yarn.application.id"), "123")
-    Assertions.assertEquals(map("yarn.application.name"), "streampark job")
-    Assertions.assertEquals(map("yarn.application.queue"), "flink")
-    Assertions.assertEquals(map("diy.param.name"), "apache streampark")
   }
 
 }

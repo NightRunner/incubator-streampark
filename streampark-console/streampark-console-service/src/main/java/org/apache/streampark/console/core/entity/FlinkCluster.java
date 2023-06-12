@@ -23,26 +23,27 @@ import org.apache.streampark.common.enums.ExecutionMode;
 import org.apache.streampark.common.enums.FlinkK8sRestExposedType;
 import org.apache.streampark.common.enums.ResolveOrder;
 import org.apache.streampark.common.util.HttpClientUtils;
+import org.apache.streampark.common.util.PropertiesUtils;
 import org.apache.streampark.common.util.YarnUtils;
 import org.apache.streampark.console.base.util.CommonUtils;
 import org.apache.streampark.console.base.util.JacksonUtils;
 import org.apache.streampark.console.core.metrics.flink.Overview;
-import org.apache.streampark.flink.client.FlinkClient;
+import org.apache.streampark.console.core.utils.YarnQueueLabelExpression;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.flink.configuration.CoreOptions;
+import org.apache.http.client.config.RequestConfig;
 
 import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.Data;
 import lombok.SneakyThrows;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.flink.configuration.CoreOptions;
-import org.apache.http.client.config.RequestConfig;
 
 import java.io.Serializable;
 import java.net.URI;
@@ -100,7 +101,6 @@ public class FlinkCluster implements Serializable {
 
   private Integer clusterState;
 
-  @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
   private Date createTime = new Date();
 
   @JsonIgnore
@@ -125,9 +125,7 @@ public class FlinkCluster implements Serializable {
     Map<String, Object> map = JacksonUtils.read(this.options, Map.class);
     if (ExecutionMode.YARN_SESSION.equals(getExecutionModeEnum())) {
       map.put(ConfigConst.KEY_YARN_APP_NAME(), this.clusterName);
-      if (StringUtils.isNotEmpty(this.yarnQueue)) {
-        map.put(ConfigConst.KEY_YARN_APP_QUEUE(), this.yarnQueue);
-      }
+      map.putAll(YarnQueueLabelExpression.getQueueLabelMap(yarnQueue));
     }
     map.entrySet().removeIf(entry -> entry.getValue() == null);
     return map;
@@ -202,7 +200,7 @@ public class FlinkCluster implements Serializable {
   public Map<String, Object> getProperties() {
     Map<String, Object> map = new HashMap<>();
     Map<String, String> dynamicProperties =
-        FlinkClient.extractDynamicPropertiesAsJava(this.getDynamicProperties());
+        PropertiesUtils.extractDynamicPropertiesAsJava(this.getDynamicProperties());
     map.putAll(this.getOptionMap());
     map.putAll(dynamicProperties);
     ResolveOrder resolveOrder = ResolveOrder.of(this.getResolveOrder());

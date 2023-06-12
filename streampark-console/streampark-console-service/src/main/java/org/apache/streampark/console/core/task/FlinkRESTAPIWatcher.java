@@ -20,14 +20,13 @@ package org.apache.streampark.console.core.task;
 import org.apache.streampark.common.enums.ExecutionMode;
 import org.apache.streampark.common.util.HttpClientUtils;
 import org.apache.streampark.common.util.ThreadUtils;
-import org.apache.streampark.common.util.Utils;
 import org.apache.streampark.common.util.YarnUtils;
 import org.apache.streampark.console.base.util.JacksonUtils;
 import org.apache.streampark.console.core.entity.Application;
 import org.apache.streampark.console.core.entity.FlinkCluster;
 import org.apache.streampark.console.core.enums.FlinkAppState;
-import org.apache.streampark.console.core.enums.LaunchState;
 import org.apache.streampark.console.core.enums.OptionState;
+import org.apache.streampark.console.core.enums.ReleaseState;
 import org.apache.streampark.console.core.enums.StopFrom;
 import org.apache.streampark.console.core.metrics.flink.CheckPoints;
 import org.apache.streampark.console.core.metrics.flink.JobsOverview;
@@ -38,13 +37,14 @@ import org.apache.streampark.console.core.service.FlinkClusterService;
 import org.apache.streampark.console.core.service.SavePointService;
 import org.apache.streampark.console.core.service.alert.AlertService;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.http.client.config.RequestConfig;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.http.client.config.RequestConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -207,7 +207,6 @@ public class FlinkRESTAPIWatcher {
             final OptionState optionState = OPTIONING.get(key);
             try {
               // query status from flink rest api
-              Utils.required(application.getId() != null);
               getFromFlinkRestApi(application, stopFrom);
             } catch (Exception flinkException) {
               // query status from yarn rest api
@@ -356,7 +355,7 @@ public class FlinkRESTAPIWatcher {
     FlinkCluster flinkCluster = getFlinkCluster(application);
     CheckPoints checkPoints = httpCheckpoints(application, flinkCluster);
     if (checkPoints != null) {
-      checkpointProcessor.process(application.getId(), checkPoints);
+      checkpointProcessor.process(application, checkPoints);
     }
   }
 
@@ -380,14 +379,14 @@ public class FlinkRESTAPIWatcher {
     */
     if (OptionState.STARTING.equals(optionState)) {
       Application latestApp = WATCHING_APPS.get(application.getId());
-      LaunchState launchState = latestApp.getLaunchState();
-      switch (launchState) {
+      ReleaseState releaseState = latestApp.getReleaseState();
+      switch (releaseState) {
         case NEED_RESTART:
         case NEED_ROLLBACK:
           LambdaUpdateWrapper<Application> updateWrapper =
               new LambdaUpdateWrapper<Application>()
                   .eq(Application::getId, application.getId())
-                  .set(Application::getLaunch, LaunchState.DONE.get());
+                  .set(Application::getRelease, ReleaseState.DONE.get());
           applicationService.update(updateWrapper);
           break;
         default:
@@ -569,7 +568,7 @@ public class FlinkRESTAPIWatcher {
     }
   }
 
-  private void cleanSavepoint(Application application) {
+  public void cleanSavepoint(Application application) {
     SAVEPOINT_CACHE.invalidate(application.getId());
     application.setOptionState(OptionState.NONE.getValue());
   }

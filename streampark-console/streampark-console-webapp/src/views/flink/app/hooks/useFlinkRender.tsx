@@ -41,6 +41,8 @@ import { useMessage } from '/@/hooks/web/useMessage';
 import { SelectValue } from 'ant-design-vue/lib/select';
 import { CandidateTypeEnum, FailoverStrategyEnum } from '/@/enums/flinkEnum';
 import { useI18n } from '/@/hooks/web/useI18n';
+import { fetchYarnQueueList } from '/@/api/flink/setting/yarnQueue';
+import { ApiSelect } from '/@/components/Form';
 
 const { t } = useI18n();
 /* render input dropdown component */
@@ -231,6 +233,34 @@ export const renderOptionsItems = (
   });
 };
 
+/* render Yarn Queue */
+export const renderYarnQueue = ({ model, field }: RenderCallbackParams) => {
+  return (
+    <div>
+      <ApiSelect
+        name="yarnQueue"
+        placeholder={t('setting.yarnQueue.placeholder.yarnQueueLabelExpression')}
+        api={fetchYarnQueueList}
+        params={{ page: 1, pageSize: 9999 }}
+        resultField={'records'}
+        labelField={'queueLabel'}
+        valueField={'queueLabel'}
+        showSearch={true}
+        value={model[field]}
+        onChange={(value: string) => (model[field] = value)}
+      />
+      <p class="conf-desc mt-10px">
+        <span class="note-info">
+          <Tag color="#2db7f5" class="tag-note">
+            {t('flink.app.noteInfo.note')}
+          </Tag>
+          {t('setting.yarnQueue.selectionHint')}
+        </span>
+      </p>
+    </div>
+  );
+};
+
 /* render memory option */
 export const renderDynamicProperties = ({ model, field }: RenderCallbackParams) => {
   return (
@@ -372,21 +402,21 @@ export const renderSqlHistory = (
       title: () => (
         <div>
           <Icon icon="ant-design:swap-outlined" style="color: #4a9ff5" />
-          <span class="pl-10px">Compare Flink SQL</span>
+          <span class="pl-10px"> {t('flink.app.flinkSql.compare')} </span>
         </div>
       ),
-      okText: 'Compare',
+      okText: t('flink.app.flinkSql.compare'),
       width: 600,
       content: () => {
         return (
           <Form class="!pt-30px">
             <Form.Item
-              label="Version"
+              label={t('flink.app.flinkSql.version')}
               label-col={{ lg: { span: 5 }, sm: { span: 7 } }}
               wrapper-col={{ lg: { span: 16 }, sm: { span: 17 } }}
             >
               <Select
-                placeholder="Please select the sql version to compare"
+                placeholder={t('flink.app.flinkSql.compareFlinkSQL')}
                 value={unref(compareSQL)}
                 onChange={(value: any) => (compareSQL.value = value)}
                 mode="multiple"
@@ -420,15 +450,20 @@ export const renderSqlHistory = (
             </Button>
             {ver.effective && (
               <Tag color="green" style=";margin-left: 5px;" size="small">
-                Effective
+                {t('flink.app.flinkSql.effectiveVersion')}
               </Tag>
             )}
 
             {[CandidateTypeEnum.NEW, CandidateTypeEnum.HISTORY].includes(ver.candidate) && (
               <Tag color="cyan" style=";margin-left: 5px;" size="small">
-                Candidate
+                {t('flink.app.flinkSql.candidateVersion')}
               </Tag>
             )}
+
+            <span style="color: darkgrey">
+                <Icon icon="ant-design:clock-circle-outlined" />
+              {ver.createTime}
+            </span>
           </div>
         </Select.Option>
       );
@@ -459,13 +494,13 @@ export const renderCompareSelectTag = (ver: any) => {
       </Button>
       {ver.effective && (
         <Tag color="green" style=";margin-left: 5px;" size="small">
-          Effective
+          {t('flink.app.flinkSql.effectiveVersion')}
         </Tag>
       )}
 
       {[CandidateTypeEnum.NEW, CandidateTypeEnum.HISTORY].includes(ver.candidate) && (
         <Tag color="cyan" style=";margin-left: 5px;" size="small">
-          Candidate
+          {t('flink.app.flinkSql.candidateVersion')}
         </Tag>
       )}
     </div>

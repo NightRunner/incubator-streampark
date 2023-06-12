@@ -25,9 +25,10 @@ import org.apache.streampark.console.core.bean.SenderEmail;
 import org.apache.streampark.console.core.service.SettingService;
 import org.apache.streampark.console.core.service.alert.AlertNotifyService;
 
+import org.apache.commons.mail.HtmlEmail;
+
 import freemarker.template.Template;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.mail.HtmlEmail;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -83,6 +84,7 @@ public class EmailAlertNotifyServiceImpl implements AlertNotifyService {
       htmlEmail.setAuthentication(senderEmail.getUserName(), senderEmail.getPassword());
       htmlEmail.setFrom(senderEmail.getFrom());
       if (senderEmail.isSsl()) {
+        htmlEmail.setSSLCheckServerIdentity(true);
         htmlEmail.setSSLOnConnect(true);
         htmlEmail.setSslSmtpPort(senderEmail.getSmtpPort().toString());
       } else {

@@ -31,11 +31,12 @@ import org.apache.streampark.console.system.mapper.AccessTokenMapper;
 import org.apache.streampark.console.system.service.AccessTokenService;
 import org.apache.streampark.console.system.service.UserService;
 
+import org.apache.commons.lang3.StringUtils;
+
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -45,7 +46,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.TimeZone;
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -65,11 +65,8 @@ public class AccessTokenServiceImpl extends ServiceImpl<AccessTokenMapper, Acces
     if (StringUtils.isEmpty(expireTime)) {
       expireTime = AccessToken.DEFAULT_EXPIRE_TIME;
     }
-
     Long ttl = DateUtils.getTime(expireTime, DateUtils.fullFormat(), TimeZone.getDefault());
-    String token =
-        WebUtils.encryptToken(
-            JWTUtil.sign(user.getUserId(), user.getUsername(), UUID.randomUUID().toString(), ttl));
+    String token = WebUtils.encryptToken(JWTUtil.sign(user.getUserId(), user.getUsername(), ttl));
     JWTToken jwtToken = new JWTToken(token, expireTime);
 
     AccessToken accessToken = new AccessToken();

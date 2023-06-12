@@ -23,7 +23,7 @@
   import { defineComponent, nextTick, ref, unref, onUnmounted, onMounted } from 'vue';
   import { useAppTableAction } from './hooks/useAppTableAction';
   import { useI18n } from '/@/hooks/web/useI18n';
-  import { AppStateEnum, JobTypeEnum, OptionStateEnum, LaunchStateEnum } from '/@/enums/flinkEnum';
+  import { AppStateEnum, JobTypeEnum, OptionStateEnum, ReleaseStateEnum } from '/@/enums/flinkEnum';
   import { useTimeoutFn } from '@vueuse/core';
   import { Tooltip, Badge, Divider, Tag } from 'ant-design-vue';
   import { fetchAppRecord } from '/@/api/flink/app/app';
@@ -31,7 +31,7 @@
   import { PageWrapper } from '/@/components/Page';
   import { BasicTable, TableAction } from '/@/components/Table';
   import { AppListRecord } from '/@/api/flink/app/app.type';
-  import { getAppColumns, launchTitleMap } from './data';
+  import { getAppColumns, releaseTitleMap } from './data';
   import { handleView } from './utils';
   import { useDrawer } from '/@/components/Drawer';
   import { useModal } from '/@/components/Modal';
@@ -42,19 +42,21 @@
   import BuildDrawer from './components/AppView/BuildDrawer.vue';
   import AppDashboard from './components/AppView/AppDashboard.vue';
   import State from './components/State';
+  import { useSavepoint } from './hooks/useSavepoint';
 
   const { t } = useI18n();
   const optionApps = {
     starting: new Map(),
     stopping: new Map(),
-    launch: new Map(),
+    release: new Map(),
+    savepointing: new Map(),
   };
 
   const appDashboardRef = ref<any>();
 
   const yarn = ref<Nullable<string>>(null);
   const currentTablePage = ref(1);
-
+  const { openSavepoint } = useSavepoint(handleOptionApp);
   const [registerStartModal, { openModal: openStartModal }] = useModal();
   const [registerStopModal, { openModal: openStopModal }] = useModal();
   const [registerLogModal, { openModal: openLogModal }] = useModal();
@@ -98,9 +100,14 @@
               optionApps.stopping.delete(x.id);
             }
           }
-          if (optionApps.launch.get(x.id)) {
-            if (timestamp - optionApps.launch.get(x.id) > 2000) {
-              optionApps.launch.delete(x.id);
+          if (optionApps.release.get(x.id)) {
+            if (timestamp - optionApps.release.get(x.id) > 2000) {
+              optionApps.release.delete(x.id);
+            }
+          }
+          if (optionApps.savepointing.get(x.id)) {
+            if (timestamp - optionApps.savepointing.get(x.id) > 2000) {
+              optionApps.savepointing.delete(x.id);
             }
           }
         }
@@ -115,12 +122,17 @@
     showTableSetting: true,
     useSearchForm: true,
     tableSetting: { fullScreen: true, redo: false },
-    actionColumn: { dataIndex: 'operation', title: t('component.table.operation'), width: 180 },
+    actionColumn: {
+      dataIndex: 'operation',
+      title: t('component.table.operation'),
+      width: 180,
+    },
   });
 
-  const { getTableActions, getActionDropdown, formConfig } = useAppTableAction(
+  const { getTableActions, formConfig } = useAppTableAction(
     openStartModal,
     openStopModal,
+    openSavepoint,
     openLogModal,
     openBuildDrawer,
     handlePageDataReload,
@@ -146,7 +158,7 @@
 
   /* Update options data */
   function handleOptionApp(data: {
-    type: 'starting' | 'stopping' | 'launch';
+    type: 'starting' | 'stopping' | 'release' | 'savepointing';
     key: any;
     value: any;
   }) {
@@ -204,13 +216,13 @@
 
           <template v-if="record['jobType'] === JobTypeEnum.JAR">
             <Badge
-              v-if="record.launch == LaunchStateEnum.NEED_CHECK"
+              v-if="record.release === ReleaseStateEnum.NEED_CHECK"
               class="build-badge"
               count="NEW"
               :title="t('flink.app.view.recheck')"
             />
             <Badge
-              v-else-if="record.launch >= LaunchStateEnum.LAUNCHING"
+              v-else-if="record.release >= ReleaseStateEnum.RELEASING"
               class="build-badge"
               count="NEW"
               :title="t('flink.app.view.changed')"
@@ -224,7 +236,7 @@
               :key="'tag-'.concat(index.toString())"
               class="pl-4px"
             >
-              <Tag color="blue" class="app-tag">{{ tag }}</Tag>
+              <Tag color="blue">{{ tag }}</Tag>
             </span>
           </Tooltip>
         </template>
@@ -234,8 +246,8 @@
         <template v-if="column.dataIndex === 'state'">
           <State option="state" :data="record" />
         </template>
-        <template v-if="column.dataIndex === 'launch'">
-          <State option="launch" :title="launchTitleMap[record.launch] || ''" :data="record" />
+        <template v-if="column.dataIndex === 'release'">
+          <State option="release" :title="releaseTitleMap[record.release] || ''" :data="record" />
           <Divider type="vertical" style="margin: 0 4px" v-if="record.buildStatus" />
           <State
             option="build"
@@ -244,10 +256,7 @@
           />
         </template>
         <template v-if="column.dataIndex === 'operation'">
-          <TableAction
-            :actions="getTableActions(record, currentTablePage)"
-            :dropDownActions="getActionDropdown(record)"
-          />
+          <TableAction v-bind="getTableActions(record, currentTablePage)" />
         </template>
       </template>
     </BasicTable>

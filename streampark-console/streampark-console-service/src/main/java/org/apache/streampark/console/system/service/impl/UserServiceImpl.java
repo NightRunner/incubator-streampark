@@ -29,13 +29,14 @@ import org.apache.streampark.console.system.service.MemberService;
 import org.apache.streampark.console.system.service.MenuService;
 import org.apache.streampark.console.system.service.UserService;
 
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -74,7 +75,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     page.setSize(request.getPageSize());
     IPage<User> resPage = this.baseMapper.findUserDetail(page, user);
 
-    Utils.required(resPage != null);
+    Utils.notNull(resPage);
     if (resPage.getTotal() == 0) {
       resPage.setRecords(Collections.emptyList());
     }
@@ -95,7 +96,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
   @Transactional(rollbackFor = Exception.class)
   public void createUser(User user) {
     user.setCreateTime(new Date());
-    user.setAvatar(User.DEFAULT_AVATAR);
     String salt = ShaHashUtils.getRandomSalt();
     String password = ShaHashUtils.encrypt(salt, user.getPassword());
     user.setSalt(salt);
@@ -120,55 +120,45 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
   @Override
   @Transactional(rollbackFor = Exception.class)
-  public void updateProfile(User user) {
-    updateById(user);
-  }
-
-  @Override
-  @Transactional(rollbackFor = Exception.class)
-  public void updateAvatar(String username, String avatar) {
-    User user = new User();
-    user.setAvatar(avatar);
-    LambdaQueryWrapper<User> queryWrapper =
-        new LambdaQueryWrapper<User>().eq(User::getUsername, username);
-    this.baseMapper.update(user, queryWrapper);
-  }
-
-  @Override
-  @Transactional(rollbackFor = Exception.class)
   public void updatePassword(User userParam) {
     User user = getById(userParam.getUserId());
-    if (user == null) {
-      throw new ApiAlertException("update password failed, user is null");
-    }
+    ApiAlertException.throwIfNull(user, "User is null. Update password failed.");
 
     String saltPassword = ShaHashUtils.encrypt(user.getSalt(), userParam.getOldPassword());
-    if (!StringUtils.equals(user.getPassword(), saltPassword)) {
-      throw new ApiAlertException("update password failed, old password error");
-    }
+    ApiAlertException.throwIfFalse(
+        StringUtils.equals(user.getPassword(), saltPassword),
+        "Old password error. Update password failed.");
 
     String salt = ShaHashUtils.getRandomSalt();
     String password = ShaHashUtils.encrypt(salt, userParam.getPassword());
     user.setSalt(salt);
     user.setPassword(password);
-    LambdaQueryWrapper<User> queryWrapper =
-        new LambdaQueryWrapper<User>().eq(User::getUserId, user.getUserId());
-    this.baseMapper.update(user, queryWrapper);
+    this.baseMapper.updateById(user);
   }
 
   @Override
   @Transactional(rollbackFor = Exception.class)
-  public void resetPassword(String[] usernames) {
-    for (String username : usernames) {
-      User user = new User();
-      String salt = ShaHashUtils.getRandomSalt();
-      String password = ShaHashUtils.encrypt(salt, User.DEFAULT_PASSWORD);
-      user.setSalt(salt);
-      user.setPassword(password);
-      LambdaQueryWrapper<User> queryWrapper =
-          new LambdaQueryWrapper<User>().eq(User::getUsername, username);
-      this.baseMapper.update(user, queryWrapper);
-    }
+  public void updateSaltPassword(User userParam) {
+    User user = getById(userParam.getUserId());
+    ApiAlertException.throwIfNull(user, "User is null. Update password failed.");
+    user.setSalt(userParam.getSalt());
+    user.setPassword(userParam.getPassword());
+    this.baseMapper.updateById(user);
+  }
+
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public String resetPassword(String username) {
+    User user = new User();
+    String salt = ShaHashUtils.getRandomSalt();
+    String newPassword = ShaHashUtils.getRandomSalt(User.DEFAULT_PASSWORD_LENGTH);
+    String password = ShaHashUtils.encrypt(salt, newPassword);
+    user.setSalt(salt);
+    user.setPassword(password);
+    LambdaQueryWrapper<User> queryWrapper =
+        new LambdaQueryWrapper<User>().eq(User::getUsername, username);
+    this.baseMapper.update(user, queryWrapper);
+    return newPassword;
   }
 
   @Override
@@ -189,7 +179,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
   @Override
   public void setLastTeam(Long teamId, Long userId) {
     User user = getById(userId);
-    Utils.required(user != null);
+    Utils.notNull(user);
     user.setLastTeamId(teamId);
     this.baseMapper.updateById(user);
   }
@@ -197,7 +187,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
   @Override
   public void clearLastTeam(Long userId, Long teamId) {
     User user = getById(userId);
-    Utils.required(user != null);
+    Utils.notNull(user);
     if (!teamId.equals(user.getLastTeamId())) {
       return;
     }

@@ -49,6 +49,7 @@
   import { UserListRecord } from '/@/api/system/model/userModel';
   import { useI18n } from '/@/hooks/web/useI18n';
   import Icon from '/@/components/Icon';
+  import { LoginTypeEnum } from '/@/views/base/login/useLogin';
 
   export default defineComponent({
     name: 'User',
@@ -104,7 +105,9 @@
             icon: 'bx:reset',
             auth: 'user:reset',
             tooltip: t('system.user.table.reset'),
-            ifShow: () => record.username !== 'admin' || userName.value === 'admin',
+            ifShow: () =>
+              (record.username !== 'admin' || userName.value === 'admin') &&
+              record.loginType == LoginTypeEnum[LoginTypeEnum.PASSWORD],
             popConfirm: {
               title: t('system.user.table.resetTip'),
               confirm: handleReset.bind(null, record),
@@ -157,8 +160,14 @@
       async function handleReset(record: Recordable) {
         const hide = createMessage.loading('reseting');
         try {
-          await resetPassword({ usernames: record.username });
-          Swal.fire(t('system.user.table.resetSuccess', [record.username]), '', 'success');
+          const resp = await resetPassword({ username: record.username });
+          if (resp.data.code == 200) {
+            Swal.fire({
+              icon: 'success',
+              title: t('system.user.resetSucceeded'),
+              text: t('system.user.newPasswordTip') + resp.data.data,
+            });
+          }
         } catch (error) {
           console.error('user password fail:', error);
         } finally {

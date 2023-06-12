@@ -50,7 +50,7 @@
       <li class="list-content_item">
         <span>{{ t('flink.project.form.branches') }}</span>
         <p>
-          <a-tag color="blue">{{ item.branches }}</a-tag>
+          <Tag color="blue" style="border-radius: 4px">{{ item.branches }}</Tag>
         </p>
       </li>
       <li class="list-content_item build_time">
@@ -89,13 +89,13 @@
             </a-button>
           </a-popconfirm>
         </a-tooltip>
+        <a-tooltip :title="t('flink.project.operationTips.updateProject')">
+          <a-button v-auth="'project:update'" @click="handleEdit" shape="circle" class="ml-8px">
+            <EditOutlined />
+          </a-button>
+        </a-tooltip>
       </template>
 
-      <a-tooltip :title="t('flink.project.operationTips.updateProject')">
-        <a-button v-auth="'project:update'" @click="handleEdit" shape="circle" class="ml-8px">
-          <EditOutlined />
-        </a-button>
-      </a-tooltip>
       <a-tooltip :title="t('flink.project.operationTips.deleteProject')">
         <a-popconfirm
           :title="t('flink.project.operationTips.deleteProjectMessage')"

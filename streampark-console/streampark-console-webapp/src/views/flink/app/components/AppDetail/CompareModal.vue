@@ -17,7 +17,6 @@
 <script lang="ts">
   import { computed, defineComponent, reactive, ref, toRaw } from 'vue';
   import { useI18n } from '/@/hooks/web/useI18n';
-  import { CandidateTypeEnum } from '/@/enums/flinkEnum';
   export default defineComponent({
     name: 'CompareModal',
   });
@@ -139,14 +138,6 @@
               </a-button>
               <Tag color="green" style="margin-left: 10px" size="small" v-if="ver.effective">
                 Effective
-              </Tag>
-              <Tag
-                color="cyan"
-                class="ml-5px"
-                size="small"
-                v-if="[CandidateTypeEnum.NEW, CandidateTypeEnum.HISTORY].includes(ver.candidate)"
-              >
-                {{ t('flink.app.detail.candidate') }}
               </Tag>
             </div>
           </SelectOption>

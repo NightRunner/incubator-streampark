@@ -43,16 +43,16 @@ export enum ExecModeEnum {
   KUBERNETES_APPLICATION = 6,
 }
 
-export enum LaunchStateEnum {
-  /** launch failed */
+export enum ReleaseStateEnum {
+  /** release failed */
   FAILED = -1,
-  /** launch done */
+  /** release done */
   DONE = 0,
-  /** need relaunch after modify task */
-  NEED_LAUNCH = 1,
-  /** launching */
-  LAUNCHING = 2,
-  /** launch complete, need restart */
+  /** need release after modify task */
+  NEED_RELEASE = 1,
+  /** releasing */
+  RELEASING = 2,
+  /** release complete, need restart */
   NEED_RESTART = 3,
   /** need rollback */
   NEED_ROLLBACK = 4,
@@ -62,11 +62,22 @@ export enum LaunchStateEnum {
   REVOKED = 10,
 }
 
+export enum OperationEnum {
+  /** user operation: release app */
+  RELEASE = 0,
+  /** user operation: start app */
+  START = 1,
+  /** user operation: trigger savepoint */
+  SAVEPOINT = 2,
+  /** user operation: cancel app */
+  CANCEL = 3,
+}
+
 export enum OptionStateEnum {
   /** Application which is currently action: none. */
   NONE = 0,
   /** Application which is currently action: deploying. */
-  LAUNCHING = 1,
+  RELEASING = 1,
   /** Application which is currently action: cancelling. */
   CANCELLING = 2,
   /** Application which is currently action: starting. */
@@ -96,7 +107,7 @@ export enum AppStateEnum {
   CANCELLING = 8,
   /** Job has been cancelled. */
   CANCELED = 9,
-  /** All of the job's tasks have successfully finished. */
+  /** All the job's tasks have successfully finished. */
   FINISHED = 10,
   /** The job has been suspended which means that it has been stopped but not been removed from a potential HA job store. */
   SUSPENDED = 11,
@@ -115,9 +126,9 @@ export enum AppStateEnum {
    * A complete loss of flink job tracking translates into LOST state.
    */
   SILENT = 17,
-  /** Flink job has terminated vaguely, maybe FINISHED, CACNELED or FAILED */
+  /** Flink job has terminated vaguely, maybe FINISHED, CANCELED or FAILED */
   TERMINATED = 18,
-  /** Flink job has terminated vaguely, maybe FINISHED, CACNELED or FAILED */
+  /** Flink job has terminated vaguely, maybe FINISHED, CANCELED or FAILED */
   POS_TERMINATED = 19,
   /** job SUCCEEDED on yarn */
   SUCCEEDED = 20,

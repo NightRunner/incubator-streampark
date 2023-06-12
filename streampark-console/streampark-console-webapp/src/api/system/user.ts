@@ -30,7 +30,6 @@ import { BasicTableParams } from '../model/baseModel';
 
 enum Api {
   Login = '/passport/signin',
-  LoginByLdap = '/passport/ldapSignin',
   Logout = '/passport/signout',
   GetUserInfo = '/getUserInfo',
   GetPermCode = '/getPermCode',
@@ -42,7 +41,6 @@ enum Api {
   ResetPassword = '/user/password/reset',
   Password = '/user/password',
   CheckName = '/user/check/name',
-  TYPES = '/user/types',
   SET_TEAM = '/user/setTeam',
   INIT_TEAM = '/user/initTeam',
   APP_OWNERS = '/user/appOwners',
@@ -58,19 +56,6 @@ export function loginApi(
 ): Promise<AxiosResponse<Result<LoginResultModel>>> {
   return defHttp.post(
     { url: Api.Login, data },
-    { isReturnNativeResponse: true, errorMessageMode: mode },
-  );
-}
-/**
- * @description: user login api (ldap)
- * @return {Promise<AxiosResponse<Result<LoginResultModel>>>}
- */
-export function loginLdapApi(
-  data: LoginParams,
-  mode: ErrorMessageMode = 'modal',
-): Promise<AxiosResponse<Result<LoginResultModel>>> {
-  return defHttp.post(
-    { url: Api.LoginByLdap, data },
     { isReturnNativeResponse: true, errorMessageMode: mode },
   );
 }
@@ -118,8 +103,9 @@ export function deleteUser(data) {
   return defHttp.delete({ url: Api.UserDelete, data });
 }
 
-export function resetPassword(data) {
-  return defHttp.put({ url: Api.ResetPassword, data });
+export function resetPassword(data): Promise<AxiosResponse<Result<string>>> {
+  return defHttp.put({ url: Api.ResetPassword, data },
+    { isReturnNativeResponse: true },);
 }
 
 export function checkUserName(data) {
@@ -129,16 +115,6 @@ export function checkUserName(data) {
   });
 }
 
-export function fetchUserTypes() {
-  return defHttp
-    .post({
-      url: Api.TYPES,
-      data: {},
-    })
-    .then((res) => {
-      return res.map((t: string) => ({ label: t, value: t }));
-    });
-}
 /**
  * User change password
  * @param data

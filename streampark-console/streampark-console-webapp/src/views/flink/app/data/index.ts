@@ -20,7 +20,7 @@ import {
   AppStateEnum,
   ExecModeEnum,
   FailoverStrategyEnum,
-  LaunchStateEnum,
+  ReleaseStateEnum,
 } from '/@/enums/flinkEnum';
 import { useI18n } from '/@/hooks/web/useI18n';
 const { t } = useI18n();
@@ -32,19 +32,10 @@ export const getAppColumns = (): BasicColumn[] => [
     dataIndex: 'jobName',
     align: 'left',
     fixed: 'left',
-    width: 300,
+    width: 250,
   },
+  { title: t('flink.app.flinkVersion'), dataIndex: 'flinkVersion', width: 110 },
   { title: t('flink.app.tags'), ellipsis: true, dataIndex: 'tags', width: 150 },
-  { title: t('flink.app.owner'), dataIndex: 'nickName', width: 100 },
-  { title: t('flink.app.flinkVersion'), dataIndex: 'flinkVersion', width: 130 },
-  {
-    title: t('flink.app.duration'),
-    dataIndex: 'duration',
-    sorter: true,
-    width: 150,
-    customRender: ({ value }) => dateToDuration(value),
-  },
-  { title: t('flink.app.modifiedTime'), dataIndex: 'modifyTime', sorter: true, width: 170 },
   {
     title: t('flink.app.runStatus'),
     dataIndex: 'state',
@@ -62,7 +53,16 @@ export const getAppColumns = (): BasicColumn[] => [
       { text: t('flink.app.runStatusOptions.terminated'), value: String(AppStateEnum.TERMINATED) },
     ],
   },
-  { title: t('flink.app.launchBuild'), dataIndex: 'launch', width: 220 },
+  { title: t('flink.app.releaseBuild'), dataIndex: 'release', width: 220 },
+  {
+    title: t('flink.app.duration'),
+    dataIndex: 'duration',
+    sorter: true,
+    width: 150,
+    customRender: ({ value }) => dateToDuration(value),
+  },
+  { title: t('flink.app.modifiedTime'), dataIndex: 'modifyTime', sorter: true, width: 165 },
+  { title: t('flink.app.owner'), dataIndex: 'nickName', width: 100 },
 ];
 
 /* Get diff editor configuration */
@@ -131,10 +131,10 @@ export const cpTriggerAction = [
   { label: 'restart', value: FailoverStrategyEnum.RESTART },
 ];
 
-export const launchTitleMap = {
-  [LaunchStateEnum.FAILED]: 'launch failed',
-  [LaunchStateEnum.NEED_LAUNCH]: 'current job need relaunch',
-  [LaunchStateEnum.LAUNCHING]: 'launching',
-  [LaunchStateEnum.NEED_RESTART]: 'launch finished,need restart',
-  [LaunchStateEnum.NEED_ROLLBACK]: 'application is rollbacked,need relaunch',
+export const releaseTitleMap = {
+  [ReleaseStateEnum.FAILED]: 'release failed',
+  [ReleaseStateEnum.NEED_RELEASE]: 'current job need release',
+  [ReleaseStateEnum.RELEASING]: 'releasing',
+  [ReleaseStateEnum.NEED_RESTART]: 'release finished,need restart',
+  [ReleaseStateEnum.NEED_ROLLBACK]: 'application is rollbacked,need release',
 };

@@ -33,25 +33,26 @@ import org.apache.streampark.console.base.util.ObjectUtils;
 import org.apache.streampark.console.base.util.WebUtils;
 import org.apache.streampark.console.core.bean.AppControl;
 import org.apache.streampark.console.core.enums.FlinkAppState;
-import org.apache.streampark.console.core.enums.LaunchState;
+import org.apache.streampark.console.core.enums.ReleaseState;
 import org.apache.streampark.console.core.enums.ResourceFrom;
 import org.apache.streampark.console.core.metrics.flink.JobsOverview;
+import org.apache.streampark.console.core.utils.YarnQueueLabelExpression;
 import org.apache.streampark.flink.kubernetes.model.K8sPodTemplates;
 import org.apache.streampark.flink.packer.maven.Artifact;
 import org.apache.streampark.flink.packer.maven.DependencyInfo;
+
+import org.apache.commons.lang3.StringUtils;
 
 import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 
 import javax.annotation.Nonnull;
 
@@ -64,6 +65,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.apache.streampark.console.core.enums.FlinkAppState.of;
@@ -111,13 +113,15 @@ public class Application implements Serializable {
   private String k8sNamespace = K8sFlinkConfig.DEFAULT_KUBERNETES_NAMESPACE();
 
   private Integer state;
-  /** task launch status */
-  private Integer launch;
+  /** task release status */
+  @TableField("`release`")
+  private Integer release;
 
   /** determine if a task needs to be built */
   private Boolean build;
 
   /** max restart retries after job failed */
+  @TableField(updateStrategy = FieldStrategy.IGNORED)
   private Integer restartSize;
 
   /** has restart count */
@@ -126,6 +130,7 @@ public class Application implements Serializable {
   private Integer optionState;
 
   /** alert id */
+  @TableField(updateStrategy = FieldStrategy.IGNORED)
   private Integer alertId;
 
   private String args;
@@ -133,7 +138,10 @@ public class Application implements Serializable {
   private String module;
 
   private String options;
+
+  @TableField(updateStrategy = FieldStrategy.IGNORED)
   private String hotParams;
+
   private Integer resolveOrder;
   private Integer executionMode;
   private String dynamicProperties;
@@ -152,10 +160,8 @@ public class Application implements Serializable {
 
   private String mainClass;
 
-  @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
   private Date startTime;
 
-  @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
   @TableField(updateStrategy = FieldStrategy.IGNORED)
   private Date endTime;
 
@@ -186,13 +192,10 @@ public class Application implements Serializable {
 
   private String description;
 
-  @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
   private Date createTime;
 
-  @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
   private Date optionTime;
 
-  @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
   private Date modifyTime;
 
   /** The exposed type of the rest service of K8s(kubernetes.rest-service.exposed.type) */
@@ -235,6 +238,7 @@ public class Application implements Serializable {
   private transient String savePoint;
   private transient Boolean savePointed = false;
   private transient Boolean drain = false;
+  private transient Long savePointTimeout = 60L;
   private transient Boolean allowNonRestored = false;
   private transient String socketId;
   private transient String projectName;
@@ -284,6 +288,23 @@ public class Application implements Serializable {
     this.tracking = shouldTracking(appState);
   }
 
+  public void setYarnQueueByHotParams() {
+    if (!(ExecutionMode.YARN_APPLICATION == this.getExecutionModeEnum()
+        || ExecutionMode.YARN_PER_JOB == this.getExecutionModeEnum())) {
+      return;
+    }
+
+    Map<String, Object> hotParamsMap = this.getHotParamsMap();
+    if (!hotParamsMap.isEmpty() && hotParamsMap.containsKey(ConfigConst.KEY_YARN_APP_QUEUE())) {
+      String yarnQueue = hotParamsMap.get(ConfigConst.KEY_YARN_APP_QUEUE()).toString();
+      String labelExpr =
+          Optional.ofNullable(hotParamsMap.get(ConfigConst.KEY_YARN_APP_NODE_LABEL()))
+              .map(Object::toString)
+              .orElse(null);
+      this.setYarnQueue(YarnQueueLabelExpression.of(yarnQueue, labelExpr).toString());
+    }
+  }
+
   /**
    * Determine if a FlinkAppState requires tracking.
    *
@@ -305,18 +326,37 @@ public class Application implements Serializable {
     }
   }
 
+  /**
+   * Determine whether the application can be started to prevent repeated starts.
+   *
+   * @return true: can start | false: can not start.
+   */
+  public boolean isCanBeStart() {
+    FlinkAppState state = FlinkAppState.of(getState());
+    switch (state) {
+      case ADDED:
+      case CREATED:
+      case FAILED:
+      case CANCELED:
+      case FINISHED:
+      case LOST:
+      case TERMINATED:
+      case SUCCEEDED:
+      case KILLED:
+      case POS_TERMINATED:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   public boolean shouldBeTrack() {
     return shouldTracking(FlinkAppState.of(getState())) == 1;
   }
 
   @JsonIgnore
-  public LaunchState getLaunchState() {
-    return LaunchState.of(state);
-  }
-
-  @JsonIgnore
-  public void setLaunchState(LaunchState launchState) {
-    this.launch = launchState.get();
+  public ReleaseState getReleaseState() {
+    return ReleaseState.of(release);
   }
 
   @JsonIgnore
@@ -425,12 +465,12 @@ public class Application implements Serializable {
 
   @JsonIgnore
   public boolean isFlinkSqlJob() {
-    return DevelopmentMode.FLINKSQL.getValue().equals(this.getJobType());
+    return DevelopmentMode.FLINK_SQL.getValue().equals(this.getJobType());
   }
 
   @JsonIgnore
   public boolean isCustomCodeJob() {
-    return DevelopmentMode.CUSTOMCODE.getValue().equals(this.getJobType());
+    return DevelopmentMode.CUSTOM_CODE.getValue().equals(this.getJobType());
   }
 
   @JsonIgnore
@@ -465,7 +505,7 @@ public class Application implements Serializable {
 
   @JsonIgnore
   public boolean isNeedRollback() {
-    return LaunchState.NEED_ROLLBACK.get() == this.getLaunch();
+    return ReleaseState.NEED_ROLLBACK.get() == this.getRelease();
   }
 
   @JsonIgnore
@@ -595,16 +635,21 @@ public class Application implements Serializable {
 
   @SneakyThrows
   public void updateHotParams(Application appParam) {
+    if (appParam != this) {
+      this.hotParams = null;
+    }
     ExecutionMode executionModeEnum = appParam.getExecutionModeEnum();
     Map<String, String> hotParams = new HashMap<>(0);
-    if (ExecutionMode.YARN_APPLICATION.equals(executionModeEnum)) {
-      if (StringUtils.isNotEmpty(appParam.getYarnQueue())) {
-        hotParams.put(ConfigConst.KEY_YARN_APP_QUEUE(), appParam.getYarnQueue());
-      }
+    if (needFillYarnQueueLabel(executionModeEnum)) {
+      hotParams.putAll(YarnQueueLabelExpression.getQueueLabelMap(appParam.getYarnQueue()));
     }
     if (!hotParams.isEmpty()) {
       this.setHotParams(JacksonUtils.write(hotParams));
     }
+  }
+
+  private boolean needFillYarnQueueLabel(ExecutionMode mode) {
+    return ExecutionMode.YARN_PER_JOB.equals(mode) || ExecutionMode.YARN_APPLICATION.equals(mode);
   }
 
   @Data
@@ -650,7 +695,13 @@ public class Application implements Serializable {
     public DependencyInfo toJarPackDeps() {
       List<Artifact> mvnArts =
           this.pom.stream()
-              .map(pom -> new Artifact(pom.getGroupId(), pom.getArtifactId(), pom.getVersion()))
+              .map(
+                  pom ->
+                      new Artifact(
+                          pom.getGroupId(),
+                          pom.getArtifactId(),
+                          pom.getVersion(),
+                          pom.getClassifier()))
               .collect(Collectors.toList());
       List<String> extJars =
           this.jar.stream()
@@ -681,6 +732,7 @@ public class Application implements Serializable {
     private String groupId;
     private String artifactId;
     private String version;
+    private String classifier;
 
     @Override
     public boolean equals(Object o) {
@@ -695,17 +747,16 @@ public class Application implements Serializable {
 
     @Override
     public int hashCode() {
-      return Objects.hash(groupId, artifactId, version);
+      return Objects.hash(groupId, artifactId, version, classifier);
     }
 
     @Override
     public String toString() {
-      return groupId + ":" + artifactId + ":" + version;
+      return groupId + ":" + artifactId + ":" + version + getClassifier(":");
     }
 
-    @JsonIgnore
-    public String getPath() {
-      return getGroupId() + "_" + getArtifactId() + "-" + getVersion() + ".jar";
+    private String getClassifier(String joiner) {
+      return StringUtils.isEmpty(classifier) ? "" : joiner + classifier;
     }
   }
 }

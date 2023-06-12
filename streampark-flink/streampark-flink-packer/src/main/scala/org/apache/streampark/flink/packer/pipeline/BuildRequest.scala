@@ -17,17 +17,15 @@
 
 package org.apache.streampark.flink.packer.pipeline
 
-import scala.collection.mutable.ArrayBuffer
-
 import org.apache.streampark.common.conf.{FlinkVersion, Workspace}
 import org.apache.streampark.common.enums.{DevelopmentMode, ExecutionMode}
 import org.apache.streampark.flink.kubernetes.model.K8sPodTemplates
 import org.apache.streampark.flink.packer.docker.DockerConf
 import org.apache.streampark.flink.packer.maven.DependencyInfo
 
-/**
- * Params of a BuildPipeline instance.
- */
+import scala.collection.mutable.ArrayBuffer
+
+/** Params of a BuildPipeline instance. */
 sealed trait BuildParam {
   def appName: String
 
@@ -51,22 +49,10 @@ sealed trait FlinkBuildParam extends BuildParam {
   def customFlinkUserJar: String
 
   lazy val providedLibs: DependencyInfo = {
-    val providedLibs = ArrayBuffer(
-      localWorkspace.APP_JARS,
-      localWorkspace.APP_PLUGINS,
-      customFlinkUserJar)
-    if (developmentMode == DevelopmentMode.FLINKSQL) {
-      providedLibs += {
-        val version = flinkVersion.version.split("\\.").map(_.trim.toInt)
-        version match {
-          case Array(1, 12, _) => s"${localWorkspace.APP_SHIMS}/flink-1.12"
-          case Array(1, 13, _) => s"${localWorkspace.APP_SHIMS}/flink-1.13"
-          case Array(1, 14, _) => s"${localWorkspace.APP_SHIMS}/flink-1.14"
-          case Array(1, 15, _) => s"${localWorkspace.APP_SHIMS}/flink-1.15"
-          case Array(1, 16, _) => s"${localWorkspace.APP_SHIMS}/flink-1.16"
-          case _ => throw new UnsupportedOperationException(s"Unsupported flink version: $flinkVersion")
-        }
-      }
+    val providedLibs =
+      ArrayBuffer(localWorkspace.APP_JARS, localWorkspace.APP_PLUGINS, customFlinkUserJar)
+    if (developmentMode == DevelopmentMode.FLINK_SQL) {
+      providedLibs += s"${localWorkspace.APP_SHIMS}/flink-${flinkVersion.majorVersion}"
     }
     dependencyInfo.merge(providedLibs.toSet)
   }
@@ -95,7 +81,8 @@ case class FlinkK8sSessionBuildRequest(
     flinkVersion: FlinkVersion,
     dependencyInfo: DependencyInfo,
     clusterId: String,
-    k8sNamespace: String) extends FlinkK8sBuildParam
+    k8sNamespace: String)
+  extends FlinkK8sBuildParam
 
 case class FlinkK8sApplicationBuildRequest(
     appName: String,
@@ -112,7 +99,8 @@ case class FlinkK8sApplicationBuildRequest(
     flinkPodTemplate: K8sPodTemplates,
     integrateWithHadoop: Boolean = false,
     dockerConfig: DockerConf,
-    ingressTemplate: String) extends FlinkK8sBuildParam
+    ingressTemplate: String)
+  extends FlinkK8sBuildParam
 
 case class FlinkRemotePerJobBuildRequest(
     appName: String,
@@ -123,7 +111,8 @@ case class FlinkRemotePerJobBuildRequest(
     executionMode: ExecutionMode,
     developmentMode: DevelopmentMode,
     flinkVersion: FlinkVersion,
-    dependencyInfo: DependencyInfo) extends FlinkBuildParam
+    dependencyInfo: DependencyInfo)
+  extends FlinkBuildParam
 
 case class FlinkYarnApplicationBuildRequest(
     appName: String,
@@ -131,4 +120,5 @@ case class FlinkYarnApplicationBuildRequest(
     localWorkspace: String,
     yarnProvidedPath: String,
     developmentMode: DevelopmentMode,
-    dependencyInfo: DependencyInfo) extends BuildParam
+    dependencyInfo: DependencyInfo)
+  extends BuildParam
