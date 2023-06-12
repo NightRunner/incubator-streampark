@@ -78,7 +78,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
   }
 
   @Override
-  public void createTeam(Team team) {
+  public Team createTeam(Team team) {
     Team existedTeam = findByName(team.getTeamName());
     ApiAlertException.throwIfFalse(
         existedTeam == null,
@@ -89,6 +89,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     team.setCreateTime(new Date());
     team.setModifyTime(team.getCreateTime());
     this.save(team);
+    return team;
   }
 
   @Override

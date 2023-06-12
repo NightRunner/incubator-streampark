@@ -828,122 +828,109 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
   @Override
   @Transactional(rollbackFor = {Exception.class})
   public boolean update(Application appParam) {
-    Application application = getById(appParam.getId());
-
-    boolean success = validateQueueIfNeeded(application, appParam);
-    ApiAlertException.throwIfFalse(
-        success,
-        String.format(ERROR_APP_QUEUE_HINT, appParam.getYarnQueue(), appParam.getTeamId()));
-
-    application.setRelease(ReleaseState.NEED_RELEASE.get());
-    if (application.isUploadJob()) {
-      if (!ObjectUtils.safeEquals(application.getJar(), appParam.getJar())) {
-        application.setBuild(true);
-      } else {
-        File jarFile = new File(WebUtils.getAppTempDir(), appParam.getJar());
-        if (jarFile.exists()) {
-          long checkSum = 0;
-          try {
-            checkSum = FileUtils.checksumCRC32(jarFile);
-          } catch (IOException e) {
-            log.error("Error in checksumCRC32 for {}.", jarFile);
-            throw new RuntimeException(e);
+    try {
+      Application application = getById(appParam.getId());
+      application.setLaunch(LaunchState.NEED_LAUNCH.get());
+      if (application.isUploadJob()) {
+        if (!ObjectUtils.safeEquals(application.getJar(), appParam.getJar())) {
+          application.setBuild(true);
+        } else {
+          File jarFile = new File(WebUtils.getAppTempDir(), appParam.getJar());
+          if (jarFile.exists()) {
+            long checkSum = FileUtils.checksumCRC32(jarFile);
+            if (!ObjectUtils.safeEquals(checkSum, application.getJarCheckSum())) {
+              application.setBuild(true);
+            }
           }
-          if (!ObjectUtils.safeEquals(checkSum, application.getJarCheckSum())) {
+        }
+      }
+
+      if (!application.getBuild()) {
+        if (!application.getExecutionMode().equals(appParam.getExecutionMode())) {
+          if (appParam.getExecutionModeEnum().equals(ExecutionMode.YARN_APPLICATION)
+              || application.getExecutionModeEnum().equals(ExecutionMode.YARN_APPLICATION)) {
             application.setBuild(true);
           }
         }
       }
-    }
 
-    if (!application.getBuild()) {
-      if (!application.getExecutionMode().equals(appParam.getExecutionMode())) {
-        if (appParam.getExecutionModeEnum().equals(ExecutionMode.YARN_APPLICATION)
-            || application.getExecutionModeEnum().equals(ExecutionMode.YARN_APPLICATION)) {
+      if (ExecutionMode.isKubernetesMode(appParam.getExecutionMode())) {
+        if (!ObjectUtils.safeTrimEquals(
+                application.getK8sRestExposedType(), appParam.getK8sRestExposedType())
+            || !ObjectUtils.safeTrimEquals(
+                application.getK8sJmPodTemplate(), appParam.getK8sJmPodTemplate())
+            || !ObjectUtils.safeTrimEquals(
+                application.getK8sTmPodTemplate(), appParam.getK8sTmPodTemplate())
+            || !ObjectUtils.safeTrimEquals(
+                application.getK8sPodTemplates(), appParam.getK8sPodTemplates())
+            || !ObjectUtils.safeTrimEquals(
+                application.getK8sHadoopIntegration(), appParam.getK8sHadoopIntegration())
+            || !ObjectUtils.safeTrimEquals(application.getFlinkImage(), appParam.getFlinkImage())) {
           application.setBuild(true);
         }
       }
-    }
 
-    if (ExecutionMode.isKubernetesMode(appParam.getExecutionMode())) {
-      if (!ObjectUtils.safeTrimEquals(
-              application.getK8sRestExposedType(), appParam.getK8sRestExposedType())
-          || !ObjectUtils.safeTrimEquals(
-              application.getK8sJmPodTemplate(), appParam.getK8sJmPodTemplate())
-          || !ObjectUtils.safeTrimEquals(
-              application.getK8sTmPodTemplate(), appParam.getK8sTmPodTemplate())
-          || !ObjectUtils.safeTrimEquals(
-              application.getK8sPodTemplates(), appParam.getK8sPodTemplates())
-          || !ObjectUtils.safeTrimEquals(
-              application.getK8sHadoopIntegration(), appParam.getK8sHadoopIntegration())
-          || !ObjectUtils.safeTrimEquals(application.getFlinkImage(), appParam.getFlinkImage())) {
-        application.setBuild(true);
+      appParam.setJobType(application.getJobType());
+      // changes to the following parameters need to be re-launched to take effect
+      application.setJobName(appParam.getJobName());
+      application.setVersionId(appParam.getVersionId());
+      application.setArgs(appParam.getArgs());
+      application.setOptions(appParam.getOptions());
+      application.setDynamicProperties(appParam.getDynamicProperties());
+      application.setResolveOrder(appParam.getResolveOrder());
+      application.setExecutionMode(appParam.getExecutionMode());
+      application.setClusterId(appParam.getClusterId());
+      application.setFlinkImage(appParam.getFlinkImage());
+      application.setK8sNamespace(appParam.getK8sNamespace());
+      application.updateHotParams(appParam);
+      application.setK8sRestExposedType(appParam.getK8sRestExposedType());
+      application.setK8sPodTemplate(appParam.getK8sPodTemplate());
+      application.setK8sJmPodTemplate(appParam.getK8sJmPodTemplate());
+      application.setK8sTmPodTemplate(appParam.getK8sTmPodTemplate());
+      application.setK8sHadoopIntegration(appParam.getK8sHadoopIntegration());
+
+      // changes to the following parameters do not affect running tasks
+      application.setModifyTime(new Date());
+      application.setDescription(appParam.getDescription());
+      application.setAlertId(appParam.getAlertId());
+      application.setRestartSize(appParam.getRestartSize());
+      application.setCpFailureAction(appParam.getCpFailureAction());
+      application.setCpFailureRateInterval(appParam.getCpFailureRateInterval());
+      application.setCpMaxFailureInterval(appParam.getCpMaxFailureInterval());
+      application.setTags(appParam.getTags());
+
+      switch (appParam.getExecutionModeEnum()) {
+        case YARN_APPLICATION:
+        case YARN_PER_JOB:
+        case KUBERNETES_NATIVE_APPLICATION:
+          application.setFlinkClusterId(null);
+          break;
+        case REMOTE:
+        case YARN_SESSION:
+        case KUBERNETES_NATIVE_SESSION:
+          application.setFlinkClusterId(appParam.getFlinkClusterId());
+          break;
+        default:
+          break;
       }
-    }
 
-    // when flink version has changed, we should rebuild the application. Otherwise, the shims jar
-    // may be not suitable for the new flink version.
-    if (!ObjectUtils.safeEquals(application.getVersionId(), appParam.getVersionId())) {
-      application.setBuild(true);
-    }
-
-    appParam.setJobType(application.getJobType());
-    // changes to the following parameters need to be re-release to take effect
-    application.setJobName(appParam.getJobName());
-    application.setVersionId(appParam.getVersionId());
-    application.setArgs(appParam.getArgs());
-    application.setOptions(appParam.getOptions());
-    application.setDynamicProperties(appParam.getDynamicProperties());
-    application.setResolveOrder(appParam.getResolveOrder());
-    application.setExecutionMode(appParam.getExecutionMode());
-    application.setClusterId(appParam.getClusterId());
-    application.setFlinkImage(appParam.getFlinkImage());
-    application.setK8sNamespace(appParam.getK8sNamespace());
-    application.updateHotParams(appParam);
-    application.setK8sRestExposedType(appParam.getK8sRestExposedType());
-    application.setK8sPodTemplate(appParam.getK8sPodTemplate());
-    application.setK8sJmPodTemplate(appParam.getK8sJmPodTemplate());
-    application.setK8sTmPodTemplate(appParam.getK8sTmPodTemplate());
-    application.setK8sHadoopIntegration(appParam.getK8sHadoopIntegration());
-
-    // changes to the following parameters do not affect running tasks
-    application.setModifyTime(new Date());
-    application.setDescription(appParam.getDescription());
-    application.setAlertId(appParam.getAlertId());
-    application.setRestartSize(appParam.getRestartSize());
-    application.setCpFailureAction(appParam.getCpFailureAction());
-    application.setCpFailureRateInterval(appParam.getCpFailureRateInterval());
-    application.setCpMaxFailureInterval(appParam.getCpMaxFailureInterval());
-    application.setTags(appParam.getTags());
-
-    switch (appParam.getExecutionModeEnum()) {
-      case YARN_APPLICATION:
-      case YARN_PER_JOB:
-      case KUBERNETES_NATIVE_APPLICATION:
-        application.setFlinkClusterId(null);
-        break;
-      case REMOTE:
-      case YARN_SESSION:
-      case KUBERNETES_NATIVE_SESSION:
-        application.setFlinkClusterId(appParam.getFlinkClusterId());
-        break;
-      default:
-        break;
-    }
-
-    // Flink Sql job...
-    if (application.isFlinkSqlJob()) {
-      updateFlinkSqlJob(application, appParam);
-    } else {
-      if (application.isStreamParkJob()) {
-        configService.update(appParam, application.isRunning());
+      // Flink Sql job...
+      if (application.isFlinkSqlJob()) {
+        updateFlinkSqlJob(application, appParam);
       } else {
-        application.setJar(appParam.getJar());
-        application.setMainClass(appParam.getMainClass());
+        if (application.isStreamParkJob()) {
+          configService.update(appParam, application.isRunning());
+        } else {
+          application.setJar(appParam.getJar());
+          application.setMainClass(appParam.getMainClass());
+        }
       }
+      baseMapper.updateById(application);
+      return true;
+    } catch (Exception e) {
+      log.error(e.getMessage(), e);
+      return false;
     }
-    baseMapper.updateById(application);
-    return true;
   }
 
   /**
