@@ -26,7 +26,18 @@ server:
 
 logging:
   level:
-    root: info
+    root: debug
+    org:
+      springframework: info
+      mybatis: info
+      apache:
+        shiro: info
+        streampark:
+          console:
+            core:
+              mapper: info
+            system:
+              mapper: info
 
 knife4j:
   enable: true
@@ -96,6 +107,7 @@ streampark:
   hadoop-user-name: hdfs
   # local workspace, used to store source code and build dir etc.
   workspace:
+#    local: /opt/streampark_workspace_2.1.2_second_dev
     local: /opt/streampark_workspace
     remote: hdfs:///streampark   # support hdfs:///streampark/ 、 /streampark 、hdfs://host:ip/streampark/
 
@@ -147,3 +159,15 @@ ldap:
   user:
     identity-attribute: uid
     email-attribute: mail
+
+resource:
+  enable: true
+  heartbeatInterval: 60000
+  secret: ddd7c1990b461776df0f1174ce63773b
+  masterUrl: 172.30.1.240:8090
+  version: 1.0
+
+  #http or websocket
+  connectMasterMode: websocket
+  websocketConnectMasterRetryCount: 10
+  originApplicationId: 100011

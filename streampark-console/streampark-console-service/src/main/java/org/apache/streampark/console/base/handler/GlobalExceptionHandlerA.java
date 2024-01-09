@@ -46,7 +46,7 @@ import java.util.Set;
 @Slf4j
 @RestControllerAdvice
 @Order(value = Ordered.HIGHEST_PRECEDENCE)
-public class GlobalExceptionHandler {
+public class GlobalExceptionHandlerA {
 
   @ExceptionHandler(value = Exception.class)
   @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
