@@ -5,6 +5,8 @@ import org.apache.streampark.console.core.controller.ApplicationBuildPipelineCon
 import org.apache.streampark.console.core.entity.Application;
 import org.apache.streampark.console.core.entity.ApplicationLog;
 import org.apache.streampark.console.core.entity.FlinkEnv;
+import org.apache.streampark.console.core.entity.FlinkSql;
+import org.apache.streampark.console.core.enums.FlinkAppState;
 import org.apache.streampark.console.core.enums.ReleaseState;
 import org.apache.streampark.console.core.service.AppBuildPipeService;
 import org.apache.streampark.console.core.service.ApplicationLogService;
@@ -21,6 +23,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.vixtel.insight.core.domain.NameAndValue;
 import com.vixtel.insight.core.domain.job.flink.FlinkSQLJob;
 import com.vixtel.insight.core.dto.job.FlinkSQLJobDto;
+import com.vixtel.insight.core.enums.ActivelyResourceJobPublishStatus;
 import com.vixtel.insight.core.enums.ActivelyResourceJobStatus;
 import com.vixtel.insight.core.enums.FlinkJobPropertyType;
 import com.vixtel.insight.node.service.UploadJobLogService;
@@ -31,6 +34,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -66,22 +70,62 @@ public class ApplicationOfJobServiceImpl
     String jobId = flinkSQLJobDto.getJobId();
     List<FlinkSQLJob> jobs = flinkSQLJobDto.getJobs();
 
-    if (CollectionUtils.isEmpty(jobs)) {
-      uploadJobLogService.add(jobId, ActivelyResourceJobStatus.FAILED, "无有效job信息");
-      return;
-    }
-
     try {
+      // 删除
+      String status = flinkSQLJobDto.getStatus();
+      ActivelyResourceJobPublishStatus activelyResourceJobPublishStatus =
+          ActivelyResourceJobPublishStatus.getByName(status);
+
+      if (ActivelyResourceJobPublishStatus.DISABLED.equals(activelyResourceJobPublishStatus)) {
+        List<ApplicationOfJob> applicationOfJobs = applicationOfJobMapper.getByJobId(jobId);
+
+        for (ApplicationOfJob applicationOfJob : applicationOfJobs) {
+          Application application = applicationService.getById(applicationOfJob.getAppId());
+
+          FlinkAppState flinkAppState = FlinkAppState.of(application.getState());
+
+          if (FlinkAppState.RUNNING.equals(flinkAppState)) {
+            cancelApplication(application);
+          }
+
+          applicationService.delete(application);
+          applicationOfJobMapper.deleteById(applicationOfJob.getId());
+
+          uploadJobLogService.add(jobId, ActivelyResourceJobStatus.SUCCESS, "删除name为[%s]的job成功");
+        }
+        return;
+      }
+
+      // 校验
+      checkNotEmpty(jobs);
+
+      // 校验SQL
+      checkSql(jobs);
+
       Map<Long, Application> alreadyExistsApplicationIdMap = new HashMap<>();
       Map<String, Application> alreadyExistsApplicationNameMap = new HashMap<>();
       List<Application> applications = new ArrayList<>();
 
-      // 先停止已经存在的任务
+      // 处理已经存在的任务
+      // 找出已经修改的任务
+
+      // 先停止已经存在并且已经修改的任务
       List<ApplicationOfJob> applicationOfJobs = applicationOfJobMapper.getByJobId(jobId);
       if (!CollectionUtils.isEmpty(applicationOfJobs)) {
         for (ApplicationOfJob applicationOfJob : applicationOfJobs) {
           Application application = applicationService.getById(applicationOfJob.getAppId());
-          applicationService.forcedStop(application);
+
+          if (application == null) {
+            applicationOfJobMapper.deleteById(applicationOfJob.getId());
+            continue;
+          }
+
+          FlinkAppState flinkAppState = FlinkAppState.of(application.getState());
+
+          if (FlinkAppState.RUNNING.equals(flinkAppState)) {
+            cancelApplication(application);
+          }
+
           alreadyExistsApplicationNameMap.put(application.getJobName(), application);
           alreadyExistsApplicationIdMap.put(application.getId(), application);
         }
@@ -92,17 +136,23 @@ public class ApplicationOfJobServiceImpl
       // 需要删除的jobIds
       Set<Long> updateApplicationIds = new HashSet<>();
       for (FlinkSQLJob job : jobs) {
-        Application alreadyExistsApplication = alreadyExistsApplicationNameMap.get(job.getName());
+        Application alreadyExistsApplication =
+            alreadyExistsApplicationNameMap.get(job.getName() + "-" + jobId);
         if (alreadyExistsApplication == null) {
           // 创建application
           Application newApplication = new Application();
-          newApplication.setJobName(job.getName());
-          newApplication.setFlinkSql(job.getSql());
+          newApplication.setJobName(job.getName() + "-" + jobId);
           newApplication.setId(originApplicationId);
-          fillOptionsByJob(newApplication, job);
           Long copiedApplicationId = applicationService.copy(newApplication);
 
-          applications.add(newApplication);
+          Application saved = applicationService.getById(copiedApplicationId);
+          saved.setFlinkSql(job.getSql());
+          fillOptionsByJob(saved, job);
+          applicationService.update(saved);
+
+          Application app = new Application();
+          app.setId(copiedApplicationId);
+          applications.add(applicationService.getApp(app));
 
           // 创建关联关系
           ApplicationOfJob applicationOfJob = new ApplicationOfJob();
@@ -114,6 +164,17 @@ public class ApplicationOfJobServiceImpl
           // 更新
           alreadyExistsApplication.setFlinkSql(job.getSql());
           fillOptionsByJob(alreadyExistsApplication, job);
+
+          FlinkSql effective =
+              flinkSqlService.getEffective(alreadyExistsApplication.getId(), false);
+          if (effective == null) {
+            if (appBuildPipeService.allowToBuildNow(alreadyExistsApplication.getId())) {
+              this.build(alreadyExistsApplication.getId(), false);
+            }
+            effective = flinkSqlService.getEffective(alreadyExistsApplication.getId(), false);
+          }
+          alreadyExistsApplication.setSqlId(effective.getId());
+
           applicationService.update(alreadyExistsApplication);
 
           applications.add(alreadyExistsApplication);
@@ -125,74 +186,112 @@ public class ApplicationOfJobServiceImpl
         Long key = entry.getKey();
         Application value = entry.getValue();
         if (!updateApplicationIds.contains(key)) {
+
+          Application application = applicationService.getById(value.getId());
+
+          FlinkAppState flinkAppState = FlinkAppState.of(application.getState());
+
+          if (FlinkAppState.RUNNING.equals(flinkAppState)) {
+            cancelApplication(application);
+          }
           applicationService.delete(value);
         }
       }
 
-      // 校验SQL
-      List<FlinkSQLJob> verifiedSuccessJobList = new ArrayList<>();
-      StringBuilder buffer = new StringBuilder();
-      for (FlinkSQLJob job : jobs) {
-        FlinkSqlValidationResult flinkSqlValidationResult =
-            flinkSqlService.verifySql(job.getSql(), VERSION_ID);
-        if (flinkSqlValidationResult.success()) {
-          verifiedSuccessJobList.add(job);
-        } else {
-          buffer.append(
-              String.format(
-                  "name为[%s]的flink sql未通过校验,错误日志:%s",
-                  job.getName(), flinkSqlValidationResult.exception()));
-        }
-      }
-      if (verifiedSuccessJobList.size() < jobs.size()) {
-        uploadJobLogService.add(jobId, ActivelyResourceJobStatus.FAILED, buffer.toString());
-        throw new RuntimeException(buffer.toString());
-      }
-
       // 编译任务
       for (Application application : applications) {
-        this.build(application.getId(), false);
-        new Thread(
-                () -> {
-                  while (true) {
+        if (appBuildPipeService.allowToBuildNow(application.getId())) {
+          this.build(application.getId(), false);
+        }
+        //        new Thread(
+        //                () -> {
+        while (true) {
 
-                    Application app = applicationService.getById(application.getId());
+          try {
+            Thread.sleep(5000);
+          } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+          }
 
-                    ReleaseState releaseState = app.getReleaseState();
+          Application app = applicationService.getById(application.getId());
 
-                    if (ReleaseState.RELEASING.equals(releaseState)) {
-                      uploadJobLogService.add(
-                          jobId,
-                          ActivelyResourceJobStatus.RUNNING,
-                          String.format("job[%s]发布中", app.getJobName()));
+          ReleaseState releaseState = app.getReleaseState();
 
-                    } else if (ReleaseState.DONE.equals(releaseState)) {
-                      uploadJobLogService.add(
-                          jobId,
-                          ActivelyResourceJobStatus.RUNNING,
-                          String.format("job[%s]发布完成", app.getJobName()));
+          if (ReleaseState.RELEASING.equals(releaseState)) {
+            uploadJobLogService.add(
+                jobId,
+                ActivelyResourceJobStatus.RUNNING,
+                String.format("job[%s]发布中", app.getJobName()));
 
-                      try {
-                        applicationService.start(app, false);
-                      } catch (Exception e) {
-                        throw new RuntimeException(e);
-                      }
-                      break;
-                    }
+          } else if (ReleaseState.DONE.equals(releaseState)) {
+            uploadJobLogService.add(
+                jobId,
+                ActivelyResourceJobStatus.RUNNING,
+                String.format("job[%s]发布完成", app.getJobName()));
 
-                    try {
-                      Thread.sleep(5000);
-                    } catch (InterruptedException e) {
-                      throw new RuntimeException(e);
-                    }
-                  }
-                })
-            .start();
+            try {
+              applicationService.start(app, false);
+            } catch (Exception e) {
+              throw new RuntimeException(e);
+            }
+            break;
+          }
+        }
+        //                })
+        //            .start();
       }
 
     } catch (Exception ex) {
       ex.printStackTrace();
       uploadJobLogService.add(jobId, ActivelyResourceJobStatus.FAILED, ex.getMessage());
+    }
+  }
+
+  private void cancelApplication(Application application) throws Exception {
+    Application appParam = new Application();
+    appParam.setId(application.getId());
+    appParam.setDrain(false);
+    appParam.setSavePointed(false);
+    appParam.setTeamId(application.getTeamId());
+    applicationService.cancel(appParam);
+  }
+
+  private void checkSql(List<FlinkSQLJob> jobs) {
+    List<FlinkSQLJob> verifiedSuccessJobList = new ArrayList<>();
+    StringBuilder buffer = new StringBuilder();
+    for (FlinkSQLJob job : jobs) {
+      FlinkSqlValidationResult flinkSqlValidationResult =
+          flinkSqlService.verifySql(job.getSql(), VERSION_ID);
+      if (flinkSqlValidationResult.success()) {
+        verifiedSuccessJobList.add(job);
+      } else {
+        buffer.append(
+            String.format(
+                "name为[%s]的flink sql未通过校验,错误日志:%s",
+                job.getName(), flinkSqlValidationResult.exception()));
+      }
+    }
+    if (verifiedSuccessJobList.size() < jobs.size()) {
+      throw new RuntimeException(buffer.toString());
+    }
+  }
+
+  private static void checkNotEmpty(List<FlinkSQLJob> jobs) {
+    if (CollectionUtils.isEmpty(jobs)) {
+      throw new RuntimeException("无有效job信息");
+    }
+
+    // sql非空校验
+    StringBuilder stringBuilder = new StringBuilder();
+    boolean passNotEmptySqlCheck = true;
+    for (FlinkSQLJob job : jobs) {
+      if (!StringUtils.hasText(job.getSql())) {
+        passNotEmptySqlCheck = false;
+        stringBuilder.append(String.format("name为[%s]的sql语句不能为空", job.getName()));
+      }
+    }
+    if (!passNotEmptySqlCheck) {
+      throw new RuntimeException(stringBuilder.toString());
     }
   }
 
@@ -265,9 +364,9 @@ public class ApplicationOfJobServiceImpl
       } else if (FlinkJobPropertyType.TASK_SLOTS.getName().equals(name)) {
         jsonObject.set(FlinkJobPropertyType.TASK_SLOTS.getName(), value);
       } else if (FlinkJobPropertyType.TASK_MANAGER_MEMORY_SIZE.getName().equals(name)) {
-        jsonObject.set(FlinkJobPropertyType.TASK_MANAGER_MEMORY_SIZE.getName(), value);
+        jsonObject.set(FlinkJobPropertyType.TASK_MANAGER_MEMORY_SIZE.getName(), value + "mb");
       } else if (FlinkJobPropertyType.JOB_MANAGER_MEMORY_SIZE.getName().equals(name)) {
-        jsonObject.set(FlinkJobPropertyType.JOB_MANAGER_MEMORY_SIZE.getName(), value);
+        jsonObject.set(FlinkJobPropertyType.JOB_MANAGER_MEMORY_SIZE.getName(), value + "mb");
       }
     }
 

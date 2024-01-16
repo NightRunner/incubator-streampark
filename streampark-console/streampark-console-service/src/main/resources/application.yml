@@ -16,7 +16,7 @@
 #
 
 server:
-  port: 10000
+  port: 10005
   undertow:
     buffer-size: 1024
     direct-buffers: true
@@ -26,7 +26,7 @@ server:
 
 logging:
   level:
-    root: debug
+    root: info
     org:
       springframework: info
       mybatis: info
@@ -107,8 +107,8 @@ streampark:
   hadoop-user-name: hdfs
   # local workspace, used to store source code and build dir etc.
   workspace:
-#    local: /opt/streampark_workspace_2.1.2_second_dev
-    local: /opt/streampark_workspace
+    local: /opt/streampark_workspace_2.1.2_second_dev
+#    local: /opt/streampark_workspace
     remote: hdfs:///streampark   # support hdfs:///streampark/ 、 /streampark 、hdfs://host:ip/streampark/
 
   # remote docker register namespace for streampark
@@ -170,4 +170,4 @@ resource:
   #http or websocket
   connectMasterMode: websocket
   websocketConnectMasterRetryCount: 10
-  originApplicationId: 100011
+  originApplicationId: 100000

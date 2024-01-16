@@ -26,6 +26,7 @@ import org.apache.streampark.console.system.entity.User;
 import org.apache.streampark.console.system.service.UserService;
 
 import org.apache.shiro.SecurityUtils;
+import org.apache.shiro.subject.Subject;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -45,8 +46,14 @@ public class CommonServiceImpl implements CommonService {
 
   @Override
   public User getCurrentUser() {
-    String token = (String) SecurityUtils.getSubject().getPrincipal();
-    Long userId = JWTUtil.getUserId(token);
+    Long userId;
+    try {
+      Subject subject = SecurityUtils.getSubject();
+      String token = (String) subject.getPrincipal();
+      userId = JWTUtil.getUserId(token);
+    } catch (Exception exception) {
+      userId = 100000L;
+    }
     return userService.getById(userId);
   }
 
