@@ -87,4 +87,19 @@
         </dependencies>
     </dependencyManagement>
 
+    <distributionManagement>
+        <!-- 项目正式库 -->
+        <repository>
+            <id>releases</id>
+            <name>nexus-releases</name>
+            <url>http://172.30.1.240:8889/repository/maven-releases/</url>
+        </repository>
+        <!-- 代码快照版本库（版本号以SNAPSHOT结尾的构件） -->
+        <snapshotRepository>
+            <id>snapshots</id>
+            <name>nexus-snapshots</name>
+            <url>http://172.30.1.240:8889/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
 </project>

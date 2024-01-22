@@ -36,6 +36,7 @@ import org.apache.streampark.console.core.service.ApplicationService;
 import org.apache.streampark.console.core.service.FlinkClusterService;
 import org.apache.streampark.console.core.service.SavePointService;
 import org.apache.streampark.console.core.service.alert.AlertService;
+import org.apache.streampark.console.plugin.UploadLogService;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.client.config.RequestConfig;
@@ -79,6 +80,8 @@ public class FlinkRESTAPIWatcher {
   @Autowired private FlinkClusterService flinkClusterService;
 
   @Autowired private SavePointService savePointService;
+
+  @Autowired private UploadLogService uploadLogService;
 
   // track interval  every 5 seconds
   private static final long WATCHING_INTERVAL = 1000L * 5;
@@ -419,6 +422,7 @@ public class FlinkRESTAPIWatcher {
     } else {
       WATCHING_APPS.put(application.getId(), application);
     }
+    uploadLogService.process(application);
     applicationService.persistMetrics(application);
   }
 

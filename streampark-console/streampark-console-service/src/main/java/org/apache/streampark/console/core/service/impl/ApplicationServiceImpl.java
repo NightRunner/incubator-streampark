@@ -1569,7 +1569,7 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
 
     CompletableFutureUtils.runTimeout(
             future,
-            2L,
+            10L,
             TimeUnit.MINUTES,
             submitResponse -> {
               if (submitResponse.flinkConfig() != null) {

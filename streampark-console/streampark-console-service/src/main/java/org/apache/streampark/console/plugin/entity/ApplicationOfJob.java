@@ -21,5 +21,7 @@ public class ApplicationOfJob implements Serializable {
 
   private Long appId;
 
+  private String content;
+
   private Date createTime;
 }

@@ -5,6 +5,7 @@
         <id column="id" jdbcType="BIGINT" property="id"/>
         <result column="app_id" jdbcType="BIGINT" property="appId"/>
         <result column="job_id" jdbcType="VARCHAR" property="jobId"/>
+        <result column="content" jdbcType="VARCHAR" property="content"/>
         <result column="create_time" jdbcType="DATE" property="createTime"/>
     </resultMap>
 
@@ -12,6 +13,11 @@
         select *
         from t_application_of_job
         where job_id=#{jobId}
+    </select>
+    <select id="getByAppId" resultType="org.apache.streampark.console.plugin.entity.ApplicationOfJob" parameterType="java.lang.Long">
+        select *
+        from t_application_of_job
+        where app_id=#{appId}
     </select>
 
 </mapper>
