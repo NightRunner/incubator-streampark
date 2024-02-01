@@ -16,7 +16,7 @@
 #
 
 server:
-  port: 10001
+  port: 10000
   undertow:
     buffer-size: 1024
     direct-buffers: true
@@ -55,7 +55,7 @@ springdoc:
   packages-to-scan: org.apache.streampark.console
 
 spring:
-  profiles.active: h2 #[h2,pgsql,mysql]
+  profiles.active: mysql #[h2,pgsql,mysql]
   application.name: StreamPark
   devtools.restart.enabled: false
   mvc.pathmatch.matching-strategy: ant_path_matcher
@@ -163,11 +163,11 @@ ldap:
 resource:
   enable: true
   heartbeatInterval: 60000
-  secret: ddd7c1990b461776df0f1174ce63773b
+  secret: 20c4b47d81e619880729cc6953cbce91
   masterUrl: 172.30.1.240:8090
   version: 1.0
 
   #http or websocket
   connectMasterMode: websocket
   websocketConnectMasterRetryCount: 10
-  originApplicationId: 100000
+  originApplicationId: 100011

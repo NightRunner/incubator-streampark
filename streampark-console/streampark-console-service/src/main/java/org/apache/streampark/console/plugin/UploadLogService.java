@@ -10,7 +10,6 @@ import com.vixtel.insight.node.log.MgmtJobHelper;
 import com.vixtel.insight.node.log.content.RunningLog;
 import com.vixtel.insight.node.log.content.RunningLogContent;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -18,12 +17,25 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Component
-@EnableScheduling
 public class UploadLogService {
 
   @Autowired ApplicationOfJobMapper applicationOfJobMapper;
 
+  private Map<Long, Integer> countMap = new HashMap<>();
+
   public void process(Application application) {
+    Long applicationId = application.getId();
+
+    if (!countMap.containsKey(applicationId)) {
+      countMap.put(applicationId, 0);
+    }
+    Integer currentCount = countMap.get(applicationId);
+    if (currentCount % 5 > 0) {
+      countMap.put(applicationId, currentCount + 1);
+      return;
+    }
+
+    countMap.put(applicationId, currentCount + 1);
     try {
       String jobId = getJobId(application);
 
@@ -115,7 +127,10 @@ public class UploadLogService {
         RunningLogContent runningLogContent = new RunningLogContent();
         ArrayList<RunningLog> details = new ArrayList<>();
         RunningLog runningLog = new RunningLog();
-        runningLog.setName(content);
+        runningLog.setName(getShortName(application.getJobName()));
+        runningLog.setSuccessfulProcesses(1L);
+        runningLog.setTotalRequests(100L);
+        runningLog.setTotalRequestsUnit("1min");
         details.add(runningLog);
         runningLogContent.setDetails(details);
         MgmtJobHelper.running(jobId, runningLogContent);
@@ -125,6 +140,10 @@ public class UploadLogService {
     } catch (Exception ex) {
       ex.printStackTrace();
     }
+  }
+
+  private static String getShortName(String jobName) {
+    return jobName.substring(0, jobName.lastIndexOf("-"));
   }
 
   private final Map<Long, String> map = new HashMap<>();

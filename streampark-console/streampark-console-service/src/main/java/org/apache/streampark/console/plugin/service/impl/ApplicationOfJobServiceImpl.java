@@ -22,11 +22,11 @@ import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.vixtel.insight.core.domain.NameAndValue;
 import com.vixtel.insight.core.domain.job.flink.FlinkSQLJob;
+import com.vixtel.insight.core.domain.job.flink.SQLWrapper;
 import com.vixtel.insight.core.dto.job.FlinkSQLJobDto;
 import com.vixtel.insight.core.enums.ActivelyResourceJobPublishStatus;
-import com.vixtel.insight.core.enums.ActivelyResourceJobStatus;
 import com.vixtel.insight.core.enums.FlinkJobPropertyType;
-import com.vixtel.insight.node.service.UploadJobLogService;
+import com.vixtel.insight.node.log.MgmtJobHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,8 +58,6 @@ public class ApplicationOfJobServiceImpl
 
   @Autowired FlinkSqlService flinkSqlService;
 
-  @Autowired UploadJobLogService uploadJobLogService;
-
   @Value("${resource.originApplicationId}")
   private Long originApplicationId;
 
@@ -85,7 +83,7 @@ public class ApplicationOfJobServiceImpl
           applicationService.delete(application);
           applicationOfJobMapper.deleteById(applicationOfJob.getId());
 
-          uploadJobLogService.add(jobId, ActivelyResourceJobStatus.SUCCESS, "删除name为[%s]的job成功");
+          MgmtJobHelper.success(jobId, "删除name为[%s]的job成功");
         }
         return;
       }
@@ -129,7 +127,7 @@ public class ApplicationOfJobServiceImpl
           Long copiedApplicationId = applicationService.copy(newApplication);
 
           Application saved = applicationService.getById(copiedApplicationId);
-          saved.setFlinkSql(job.getSql());
+          saved.setFlinkSql(buildSql(job.getSql()));
           fillOptionsByJob(saved, job);
           applicationService.update(saved);
 
@@ -159,7 +157,7 @@ public class ApplicationOfJobServiceImpl
           // 更新前停止运行
           stopIfRunning(alreadyExistsApplication);
 
-          alreadyExistsApplication.setFlinkSql(job.getSql());
+          alreadyExistsApplication.setFlinkSql(buildSql(job.getSql()));
           fillOptionsByJob(alreadyExistsApplication, job);
 
           FlinkSql effective =
@@ -198,8 +196,16 @@ public class ApplicationOfJobServiceImpl
 
     } catch (Exception ex) {
       ex.printStackTrace();
-      uploadJobLogService.add(jobId, ActivelyResourceJobStatus.FAILED, ex.getMessage());
+      MgmtJobHelper.failed(jobId, "任务失败,详细信息:" + ex.getMessage());
     }
+  }
+
+  private static String buildSql(SQLWrapper sql) {
+    return sql.getInput() + "\n" + sql.getOutput() + "\n" + sql.getCalc();
+  }
+
+  private static String buildSql(String sql) {
+    return sql;
   }
 
   private void stopIfRunning(Application alreadyExistsApplication) throws Exception {
@@ -230,17 +236,9 @@ public class ApplicationOfJobServiceImpl
                   ReleaseState releaseState = app.getReleaseState();
 
                   if (ReleaseState.RELEASING.equals(releaseState)) {
-                    uploadJobLogService.add(
-                        jobId,
-                        ActivelyResourceJobStatus.RUNNING,
-                        String.format("job[%s]发布中", app.getJobName()));
-
+                    // TODO
                   } else if (ReleaseState.DONE.equals(releaseState)) {
-                    uploadJobLogService.add(
-                        jobId,
-                        ActivelyResourceJobStatus.RUNNING,
-                        String.format("job[%s]发布完成", app.getJobName()));
-
+                    MgmtJobHelper.success(jobId, String.format("job[%s]发布完成", app.getJobName()));
                     try {
                       applicationService.start(app, false);
                     } catch (Exception e) {
@@ -248,11 +246,7 @@ public class ApplicationOfJobServiceImpl
                     }
                     break;
                   } else {
-                    System.out.println("发布状态:" + releaseState);
-                    uploadJobLogService.add(
-                        jobId,
-                        ActivelyResourceJobStatus.FAILED,
-                        String.format("job[%s]发布出错", app.getJobName()));
+                    MgmtJobHelper.failed(jobId, String.format("job[%s]发布出错", app.getJobName()));
                     break;
                   }
                 }
@@ -275,7 +269,7 @@ public class ApplicationOfJobServiceImpl
     StringBuilder buffer = new StringBuilder();
     for (FlinkSQLJob job : jobs) {
       FlinkSqlValidationResult flinkSqlValidationResult =
-          flinkSqlService.verifySql(job.getSql(), VERSION_ID);
+          flinkSqlService.verifySql(buildSql(job.getSql()), VERSION_ID);
       if (flinkSqlValidationResult.success()) {
         verifiedSuccessJobList.add(job);
       } else {
@@ -299,7 +293,7 @@ public class ApplicationOfJobServiceImpl
     StringBuilder stringBuilder = new StringBuilder();
     boolean passNotEmptySqlCheck = true;
     for (FlinkSQLJob job : jobs) {
-      if (!StringUtils.hasText(job.getSql())) {
+      if (!StringUtils.hasText(buildSql(job.getSql()))) {
         passNotEmptySqlCheck = false;
         stringBuilder.append(String.format("name为[%s]的sql语句不能为空", job.getName()));
       }
