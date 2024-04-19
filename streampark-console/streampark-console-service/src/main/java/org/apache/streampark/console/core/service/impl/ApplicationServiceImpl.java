@@ -1617,6 +1617,7 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
               if (e.getCause() instanceof CancellationException) {
                 updateToStopped(application);
               } else {
+                // TODO 这里加入filesystem closed 异常的判断
                 String exception = Utils.stringifyException(e);
                 applicationLog.setException(exception);
                 applicationLog.setSuccess(false);
