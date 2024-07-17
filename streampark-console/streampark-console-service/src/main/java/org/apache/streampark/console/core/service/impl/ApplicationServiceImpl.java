@@ -116,6 +116,7 @@ import io.fabric8.kubernetes.client.KubernetesClientException;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -454,21 +455,28 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
     return cancelUserId != -1 && cancelUserId != appUserId;
   }
 
+  @Value("${resource.flinkClusterType:standalone}")
+  private String flinkClusterType;
+
   private void removeApp(Application application) {
     Long appId = application.getId();
     removeById(appId);
-    try {
-      application
-          .getFsOperator()
-          .delete(application.getWorkspace().APP_WORKSPACE().concat("/").concat(appId.toString()));
-      // try to delete yarn-application, and leave no trouble.
-      String path =
-          Workspace.of(StorageType.HDFS).APP_WORKSPACE().concat("/").concat(appId.toString());
-      if (HdfsOperator.exists(path)) {
-        HdfsOperator.delete(path);
+    if ("yarn".equals(flinkClusterType)) {
+      try {
+        application
+            .getFsOperator()
+            .delete(
+                application.getWorkspace().APP_WORKSPACE().concat("/").concat(appId.toString()));
+        // try to delete yarn-application, and leave no trouble.
+        String path =
+            Workspace.of(StorageType.HDFS).APP_WORKSPACE().concat("/").concat(appId.toString());
+        if (HdfsOperator.exists(path)) {
+          HdfsOperator.delete(path);
+        }
+      } catch (Exception e) {
+        // skip
+        e.printStackTrace();
       }
-    } catch (Exception e) {
-      // skip
     }
   }
 

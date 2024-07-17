@@ -20,6 +20,8 @@ import org.apache.streampark.console.plugin.mapper.ApplicationOfJobMapper;
 import org.apache.streampark.console.plugin.service.ApplicationOfJobService;
 import org.apache.streampark.flink.core.FlinkSqlValidationResult;
 
+import org.apache.commons.lang3.builder.ToStringBuilder;
+
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONObject;
@@ -83,7 +85,7 @@ public class ApplicationOfJobServiceImpl
   @Autowired ApplicationConfigService configService;
 
   private void specialLog(String content) {
-      log.error("specialLog:::::" + (content.length() > 120 ? content.substring(0, 120) : content));
+    log.error("specialLog:::::" + (content.length() > 120 ? content.substring(0, 120) : content));
   }
 
   @Override
@@ -519,22 +521,24 @@ public class ApplicationOfJobServiceImpl
           }
 
           Application app = applicationService.getById(application.getId());
+
           ReleaseState releaseState = app.getReleaseState();
 
-          specialLog("发布状态:" + application.getJobName() + "," + releaseState.get());
+          specialLog("发布状态:" + app.getJobName() + "," + releaseState.get());
+          specialLog("app:" + ToStringBuilder.reflectionToString(app));
 
           if (ReleaseState.RELEASING.equals(releaseState)) {
-            specialLog("判断到发布中,继续等待:" + application.getJobName());
+            specialLog("判断到发布中,继续等待:" + app.getJobName());
             continue;
           } else if (ReleaseState.DONE.equals(releaseState)) {
 
-            specialLog("判断到发布完成,准备启动:" + application.getJobName());
+            specialLog("判断到发布完成,准备启动:" + app.getJobName());
 
             MgmtJobHelper.success(jobId, String.format("job[%s]发布完成", app.getJobName()));
             try {
               applicationService.start(app, false);
 
-              specialLog("启动完成" + application.getJobName());
+              specialLog("启动完成" + app.getJobName());
 
             } catch (Exception e) {
               specialLog("启动报错" + e.getMessage());

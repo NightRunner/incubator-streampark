@@ -16,7 +16,7 @@
 #
 
 server:
-  port: 10000
+  port: 10005
   undertow:
     buffer-size: 1024
     direct-buffers: true
@@ -26,18 +26,18 @@ server:
 
 logging:
   level:
-    root: info
+    root: WARN
     org:
-      springframework: info
-      mybatis: info
+      springframework: WARN
+      mybatis: WARN
       apache:
-        shiro: info
+        shiro: WARN
         streampark:
           console:
             core:
-              mapper: info
+              mapper: WARN
             system:
-              mapper: info
+              mapper: WARN
 
 knife4j:
   enable: true
@@ -104,11 +104,11 @@ streampark:
     http-auth: simple
 
   # HADOOP_USER_NAME
-  hadoop-user-name: hdfs
+  hadoop-user-name: root
   # local workspace, used to store source code and build dir etc.
   workspace:
-#    local: /opt/streampark_workspace_2.1.2_second_dev
     local: /opt/streampark_workspace
+    #local: /opt/streampark_workspace
     remote: hdfs:///streampark   # support hdfs:///streampark/ 、 /streampark 、hdfs://host:ip/streampark/
 
   # remote docker register namespace for streampark
@@ -163,13 +163,13 @@ ldap:
 resource:
   enable: true
   heartbeatInterval: 60000
-  secret: 20c4b47d81e619880729cc6953cbce91
+  secret: ddd7c1990b461776df0f1174ce63773b
   masterUrl: 172.30.1.240:8090
   version: 1.0
 
   #http or websocket
   connectMasterMode: websocket
-  websocketConnectMasterRetryCount: 10
-  originApplicationId: 100011
-
-
+  websocketConnectMasterRetryCount: -1
+  originApplicationId: 100286
+  flinkClusterType: standalone
+  flinkLostAppRecovery: true
