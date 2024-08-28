@@ -141,8 +141,8 @@ object LfsOperator extends FsOperator with Logger {
 
   /** Force delete directory and recreate it. */
   override def mkCleanDirs(path: String): Unit = {
-    delete(path)
-    mkdirs(path)
+//    delete(path)
+//    mkdirs(path)
   }
 
   /** list file under directory, one level of traversal only */

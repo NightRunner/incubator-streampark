@@ -70,6 +70,29 @@
     </dependencyManagement>
 
     <dependencies>
+
+        <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+            <version>1.29</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.vixtel.insight</groupId>
+            <artifactId>common-core</artifactId>
+            <version>0.0.1-RELEASES</version>
+        </dependency>
+        <dependency>
+            <groupId>com.vixtel.insight</groupId>
+            <artifactId>mgmt-client-node</artifactId>
+            <version>0.0.1-RELEASES</version>
+        </dependency>
+
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.30</version>
+        </dependency>
         <!--scala-->
         <dependency>
             <groupId>org.scala-lang</groupId>
